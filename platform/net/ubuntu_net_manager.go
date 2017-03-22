@@ -382,7 +382,7 @@ func (net UbuntuNetManager) writeResolvConf(networks boshsettings.Networks) erro
 			return bosherr.WrapError(err, "Writing to /etc/resolvconf/resolv.conf.d/base")
 		}
 	} else {
-		targetPath, err := net.fs.ReadLink("/etc/resolv.conf")
+		targetPath, err := net.fs.ReadAndFollowLink("/etc/resolv.conf")
 		if err != nil {
 			return bosherr.WrapError(err, "Reading /etc/resolv.conf symlink")
 		}
