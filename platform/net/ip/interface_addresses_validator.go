@@ -19,6 +19,17 @@ func NewInterfaceAddressesValidator(interfaceAddrsProvider InterfaceAddressesPro
 }
 
 func (i *interfaceAddressesValidator) Validate(desiredInterfaceAddresses []InterfaceAddress) error {
+	//default via 159.8.154.33 dev eth1
+	//10.0.0.0/8 via 10.113.205.1 dev eth0
+	//10.112.166.128/26 dev eth0  proto kernel  scope link  src 10.112.166.152
+	//10.113.205.0/24 dev eth0  proto kernel  scope link  src 10.113.205.134
+	//159.8.154.32/27 dev eth1  proto kernel  scope link  src 159.8.154.62
+	//161.26.0.0/16 via 10.113.205.1 dev eth0
+
+	//{ip.simpleInterfaceAddress{interfaceName:"lo", ip:"127.0.0.1"},
+	// ip.simpleInterfaceAddress{interfaceName:"eth0", ip:"10.113.205.134"},
+	// ip.simpleInterfaceAddress{interfaceName:"eth0", ip:"10.112.166.152"},
+	// ip.simpleInterfaceAddress{interfaceName:"eth1", ip:"159.8.154.62"}}
 	systemInterfaceAddresses, err := i.interfaceAddrsProvider.Get()
 	if err != nil {
 		return bosherr.WrapError(err, "Getting network interface addresses")

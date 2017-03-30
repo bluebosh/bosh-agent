@@ -208,6 +208,14 @@ const (
 	NetworkTypeVIP     NetworkType = "vip"
 )
 
+type Route struct {
+	Destination string
+	Gateway     string
+	NetMask     string
+}
+
+type Routes []Route
+
 type Network struct {
 	Type NetworkType `json:"type"`
 
@@ -223,6 +231,9 @@ type Network struct {
 	Mac string `json:"mac"`
 
 	Preconfigured bool `json:"preconfigured"`
+
+	Alias  string `json:"alias,omitempty"`
+	Routes Routes `json:"routes,omitempty"`
 }
 
 type Networks map[string]Network
@@ -291,6 +302,21 @@ func (n Networks) IPs() (ips []string) {
 	return
 }
 
+func (n Networks) HasInterfaceAlias() bool {
+	for _, network := range n {
+		if network.IsVIP() {
+			// Skip VIP networks since we do not configure interfaces for them
+			continue
+		}
+
+		if network.Alias != "" {
+			return true
+		}
+	}
+
+	return false
+}
+
 func (n Networks) IsPreconfigured() bool {
 	for _, network := range n {
 		if network.IsVIP() {
@@ -308,8 +334,8 @@ func (n Networks) IsPreconfigured() bool {
 
 func (n Network) String() string {
 	return fmt.Sprintf(
-		"type: '%s', ip: '%s', netmask: '%s', gateway: '%s', mac: '%s', resolved: '%t', preconfigured: '%t', use_dhcp: '%t'",
-		n.Type, n.IP, n.Netmask, n.Gateway, n.Mac, n.Resolved, n.Preconfigured, n.UseDHCP,
+		"type: '%s', ip: '%s', netmask: '%s', gateway: '%s', mac: '%s', resolved: '%t', preconfigured: '%t', use_dhcp: '%t', alias: '%s'",
+		n.Type, n.IP, n.Netmask, n.Gateway, n.Mac, n.Resolved, n.Preconfigured, n.UseDHCP, n.Alias,
 	)
 }
 
