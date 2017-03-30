@@ -3,6 +3,7 @@ pkg
 gobin/*
 .idea
 .vagrant
+.DS_Store
 
 /tmp/
 
