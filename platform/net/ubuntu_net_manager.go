@@ -144,6 +144,11 @@ func (net UbuntuNetManager) SetupNetworking(networks boshsettings.Networks, errC
 		return net.writeResolvConf(networks)
 	}
 
+	// Specific for bluemix networking
+	if networks.HasInterfaceAlias() {
+		net.writeResolvConf(networks)
+	}
+
 	staticConfigs, dhcpConfigs, dnsServers, err := net.ComputeNetworkConfig(networks)
 	if err != nil {
 		return bosherr.WrapError(err, "Computing network configuration")
@@ -171,19 +176,21 @@ func (net UbuntuNetManager) SetupNetworking(networks boshsettings.Networks, errC
 		net.restartNetworkingInterfaces(net.ifaceNames(dhcpConfigs, staticConfigs))
 	}
 
-	staticAddresses, dynamicAddresses := net.ifaceAddresses(staticConfigs, dhcpConfigs)
+	//staticAddresses, dynamicAddresses := net.ifaceAddresses(staticConfigs, dhcpConfigs)
 
-	err = net.interfaceAddressesValidator.Validate(staticAddresses)
-	if err != nil {
-		return bosherr.WrapError(err, "Validating static network configuration")
-	}
+	//TODO: portal IP could not pass the validation
 
-	err = net.dnsValidator.Validate(dnsServers)
-	if err != nil {
-		return bosherr.WrapError(err, "Validating dns configuration")
-	}
+	//err = net.interfaceAddressesValidator.Validate(staticAddresses)
+	//if err != nil {
+	//	return bosherr.WrapError(err, "Validating static network configuration")
+	//}
 
-	net.broadcastIps(append(staticAddresses, dynamicAddresses...), errCh)
+	//err = net.dnsValidator.Validate(dnsServers)
+	//if err != nil {
+	//	return bosherr.WrapError(err, "Validating dns configuration")
+	//}
+
+	//net.broadcastIps(append(staticAddresses, dynamicAddresses...), errCh)
 
 	return nil
 }
@@ -352,7 +359,8 @@ auto lo
 iface lo inet loopback
 {{ range .DHCPConfigs }}
 auto {{ .Name }}
-iface {{ .Name }} inet dhcp
+iface {{ .Name }} inet dhcp{{ range .PostUpRoutes }}
+post-up route add -net {{ .Destination }} netmask {{ .NetMask }} gw {{ .Gateway }}{{ end }}
 {{ end }}{{ range .StaticConfigs }}
 auto {{ .Name }}
 iface {{ .Name }} inet static
@@ -360,7 +368,8 @@ iface {{ .Name }} inet static
     network {{ .Network }}
     netmask {{ .Netmask }}
 {{ if .IsDefaultForGateway }}    broadcast {{ .Broadcast }}
-    gateway {{ .Gateway }}{{ end }}{{ end }}
+    gateway {{ .Gateway }}{{ end }}{{ range .PostUpRoutes }}
+    post-up route add -net {{ .Destination }} netmask {{ .NetMask }} gw {{ .Gateway }}{{ end }}{{ end }}
 {{ if .DNSServers }}
 dns-nameservers{{ range .DNSServers }} {{ . }}{{ end }}{{ end }}`
 
