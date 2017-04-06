@@ -81,7 +81,7 @@ func (p partedPartitioner) partitionsMatch(existingPartitions []existingPartitio
 		existingPartition := existingPartitions[index]
 		if existingPartition.Type != partition.Type {
 			return false
-		} else if !withinDelta(partition.SizeInBytes, existingPartition.SizeInBytes, p.convertFromMbToBytes(20)) {
+		} else if !withinDelta(partition.SizeInBytes, existingPartition.SizeInBytes, p.convertFromMbToBytes(100)) {
 			return false
 		}
 
