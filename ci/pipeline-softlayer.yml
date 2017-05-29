@@ -1,0 +1,67 @@
+---
+jobs:
+- name: test-unit
+  public: true
+  plan:
+    - get: bosh-agent
+      trigger: true
+    - task: test-unit
+      file: bosh-agent/ci/tasks/test-unit.yml
+
+- name: promote
+  public: true
+  serial: true
+  plan:
+    - aggregate:
+      - trigger: true
+        passed: [test-unit]
+        get: bosh-agent
+      - get: version-semver
+        params: {bump: patch}
+    - put: version-semver
+      params:
+        file: version-semver/number
+    - put: bosh-agent-master
+      params:
+        repository: bosh-agent
+        tag: version-semver/number
+        tag_prefix: sv
+    - aggregate:
+      - task: build-linux
+        file: bosh-agent/ci/tasks/build-linux.yml
+    - aggregate:
+      - put: release-bucket-linux
+        params:
+          file: compiled-linux-amd64/bosh-agent-*-linux-amd64
+
+resources:
+- name: bosh-agent
+  type: git
+  source:
+    uri: https://github.com/bluebosh/bosh-agent
+    branch: master
+
+- name: bosh-agent-master
+  type: git
+  source:
+    uri: git@github.com:bluebosh/bosh-agent.git
+    branch: master
+    private_key: {{bosh-src-key}}
+
+- name: release-bucket-linux
+  type: s3
+  source:
+    regexp: bosh-agent-(.*)-linux-amd64
+    bucket: {{s3_pipeline_bucket_agent}}
+    access_key_id: {{stemcell-aws-access-key}}
+    secret_access_key: {{stemcell-aws-secret-key}}
+
+- name: version-semver
+  type: semver
+  source:
+    driver: s3
+    initial_version: 0.0.37
+    key: agent-current-version
+    bucket: bosh-softlayer-agent
+    access_key_id: {{stemcell-aws-access-key}}
+    secret_access_key: {{stemcell-aws-secret-key}}
