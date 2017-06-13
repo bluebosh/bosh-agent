@@ -147,6 +147,10 @@ func (p dummyPlatform) SaveDNSRecords(dnsRecords boshsettings.DNSRecords, hostna
 	return p.fs.WriteFileString(etcHostsPath, dnsRecordsContents.String())
 }
 
+func (p dummyPlatform) SetupIPv6(config boshsettings.IPv6) error {
+	return nil
+}
+
 func (p dummyPlatform) SetupHostname(hostname string) (err error) {
 	return
 }
@@ -450,6 +454,10 @@ func (p dummyPlatform) RemoveDevTools(packageFileListPath string) error {
 	return nil
 }
 
+func (p dummyPlatform) RemoveStaticLibraries(packageFileListPath string) error {
+	return nil
+}
+
 func (p dummyPlatform) getDiskCidByMountPoint(mountPoint string, mounts []mount) string {
 	var diskCid string
 	for _, mount := range mounts {
@@ -478,4 +486,8 @@ func (p dummyPlatform) existingMounts() ([]mount, error) {
 	}
 	err = json.Unmarshal(bytes, &mounts)
 	return mounts, err
+}
+
+func (p dummyPlatform) SetupRecordsJSONPermission(path string) error {
+	return nil
 }

@@ -81,6 +81,10 @@ func (boot bootstrap) Run() (err error) {
 		return bosherr.WrapError(err, "Settings user password")
 	}
 
+	if err = boot.platform.SetupIPv6(settings.Env.Bosh.IPv6); err != nil {
+		return bosherr.WrapError(err, "Setting up IPv6")
+	}
+
 	if err = boot.platform.SetupHostname(settings.AgentID); err != nil {
 		return bosherr.WrapError(err, "Setting up hostname")
 	}
@@ -172,6 +176,18 @@ func (boot bootstrap) Run() (err error) {
 
 		if err = boot.platform.RemoveDevTools(packageFileListPath); err != nil {
 			return bosherr.WrapError(err, "Removing Development Tools Packages")
+		}
+	}
+
+	if settings.Env.GetRemoveStaticLibraries() {
+		staticLibrariesListPath := path.Join(boot.dirProvider.EtcDir(), "static_libraries_list")
+
+		if !boot.fs.FileExists(staticLibrariesListPath) {
+			return nil
+		}
+
+		if err = boot.platform.RemoveStaticLibraries(staticLibrariesListPath); err != nil {
+			return bosherr.WrapError(err, "Removing static libraries")
 		}
 	}
 

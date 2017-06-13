@@ -1,9 +1,11 @@
 package platform
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	boshdpresolv "github.com/cloudfoundry/bosh-agent/infrastructure/devicepathresolver"
@@ -18,6 +20,7 @@ import (
 	boshcmd "github.com/cloudfoundry/bosh-utils/fileutil"
 	boshlog "github.com/cloudfoundry/bosh-utils/logger"
 	boshsys "github.com/cloudfoundry/bosh-utils/system"
+	boshuuid "github.com/cloudfoundry/bosh-utils/uuid"
 )
 
 type WindowsPlatform struct {
@@ -33,6 +36,7 @@ type WindowsPlatform struct {
 	certManager            boshcert.Manager
 	defaultNetworkResolver boshsettings.DefaultNetworkResolver
 	auditLogger            AuditLogger
+	uuidGenerator          boshuuid.Generator
 }
 
 func NewWindowsPlatform(
@@ -46,6 +50,7 @@ func NewWindowsPlatform(
 	logger boshlog.Logger,
 	defaultNetworkResolver boshsettings.DefaultNetworkResolver,
 	auditLogger AuditLogger,
+	uuidGenerator boshuuid.Generator,
 ) Platform {
 	return &WindowsPlatform{
 		fs:                     fs,
@@ -60,6 +65,7 @@ func NewWindowsPlatform(
 		certManager:            certManager,
 		defaultNetworkResolver: defaultNetworkResolver,
 		auditLogger:            auditLogger,
+		uuidGenerator:          uuidGenerator,
 	}
 }
 
@@ -128,7 +134,45 @@ func (p WindowsPlatform) SetUserPassword(user, encryptedPwd string) (err error) 
 }
 
 func (p WindowsPlatform) SaveDNSRecords(dnsRecords boshsettings.DNSRecords, hostname string) (err error) {
+	windir := os.Getenv("windir")
+	if windir == "" {
+		return bosherr.Error("SaveDNSRecords: missing %WINDIR% env variable")
+	}
+	etcdir := filepath.Join(windir, "System32", "Drivers", "etc")
+	if err := p.fs.MkdirAll(etcdir, 0755); err != nil {
+		return bosherr.WrapError(err, "SaveDNSRecords: creating etc directory")
+	}
+
+	uuid, err := p.uuidGenerator.Generate()
+	if err != nil {
+		return bosherr.WrapError(err, "SaveDNSRecords: generating UUID")
+	}
+
+	tmpfile := filepath.Join(etcdir, "hosts-"+uuid)
+	f, err := p.fs.OpenFile(tmpfile, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
+	if err != nil {
+		return bosherr.WrapError(err, "SaveDNSRecords: opening hosts file")
+	}
+
+	var buf bytes.Buffer
+	for _, rec := range dnsRecords.Records {
+		fmt.Fprintf(&buf, "%s %s\n", rec[0], rec[1])
+	}
+	if _, err := buf.WriteTo(f); err != nil {
+		f.Close()
+		return bosherr.WrapErrorf(err, "SaveDNSRecords: writing DNS records to: %s", tmpfile)
+	}
+	f.Close() // Explicitly close before renaming - required to release handle
+
+	hostfile := filepath.Join(etcdir, "hosts")
+	if err := p.fs.Rename(tmpfile, hostfile); err != nil {
+		return bosherr.WrapErrorf(err, "SaveDNSRecords: renaming %s to %s", tmpfile, hostfile)
+	}
 	return
+}
+
+func (p WindowsPlatform) SetupIPv6(config boshsettings.IPv6) error {
+	return nil
 }
 
 func (p WindowsPlatform) SetupHostname(hostname string) (err error) {
@@ -301,6 +345,10 @@ func (p WindowsPlatform) RemoveDevTools(packageFileListPath string) error {
 	return nil
 }
 
+func (p WindowsPlatform) RemoveStaticLibraries(packageFileListPath string) error {
+	return nil
+}
+
 func (p WindowsPlatform) GetDefaultNetwork() (boshsettings.Network, error) {
 	return p.defaultNetworkResolver.GetDefaultNetwork()
 }
@@ -315,5 +363,9 @@ func (p WindowsPlatform) DeleteARPEntryWithIP(ip string) error {
 		return bosherr.WrapError(err, "Deleting arp entry")
 	}
 
+	return nil
+}
+
+func (p WindowsPlatform) SetupRecordsJSONPermission(path string) error {
 	return nil
 }

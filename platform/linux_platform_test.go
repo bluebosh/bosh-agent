@@ -1949,40 +1949,53 @@ Number  Start   End     Size    File system  Name             Flags
 			err := act()
 			Expect(err).NotTo(HaveOccurred())
 
-			Expect(cmdRunner.RunCommands[0]).To(Equal([]string{"chmod", "0770", "/fake-dir/data/root_log"}))
+			Expect(cmdRunner.RunCommands).To(ContainElement([]string{"chmod", "0770", "/fake-dir/data/root_log"}))
 		})
 
 		It("creates an audit dir in root_log folder", func() {
 			err := act()
 			Expect(err).NotTo(HaveOccurred())
-			Expect(cmdRunner.RunCommands[1]).To(Equal([]string{"mkdir", "-p", "/fake-dir/data/root_log/audit"}))
+			Expect(cmdRunner.RunCommands).To(ContainElement([]string{"mkdir", "-p", "/fake-dir/data/root_log/audit"}))
 		})
 
 		It("changes permissions on the audit directory", func() {
 			err := act()
 			Expect(err).NotTo(HaveOccurred())
 
-			Expect(cmdRunner.RunCommands[2]).To(Equal([]string{"chmod", "0750", "/fake-dir/data/root_log/audit"}))
+			Expect(cmdRunner.RunCommands).To(ContainElement([]string{"chmod", "0750", "/fake-dir/data/root_log/audit"}))
+		})
+
+		It("creates an sysstat dir in root_log folder", func() {
+			err := act()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(cmdRunner.RunCommands).To(ContainElement([]string{"mkdir", "-p", "/fake-dir/data/root_log/sysstat"}))
+		})
+
+		It("changes permissions on the sysstat directory", func() {
+			err := act()
+			Expect(err).NotTo(HaveOccurred())
+
+			Expect(cmdRunner.RunCommands).To(ContainElement([]string{"chmod", "0755", "/fake-dir/data/root_log/sysstat"}))
 		})
 
 		It("changes ownership on the new bind mount folder", func() {
 			err := act()
 			Expect(err).NotTo(HaveOccurred())
 
-			Expect(cmdRunner.RunCommands[3]).To(Equal([]string{"chown", "root:syslog", "/fake-dir/data/root_log"}))
+			Expect(cmdRunner.RunCommands).To(ContainElement([]string{"chown", "root:syslog", "/fake-dir/data/root_log"}))
 		})
 
 		It("touches, chmods and chowns wtmp and btmp files", func() {
 			err := act()
 			Expect(err).NotTo(HaveOccurred())
 
-			Expect(cmdRunner.RunCommands[4]).To(Equal([]string{"touch", "/fake-dir/data/root_log/btmp"}))
-			Expect(cmdRunner.RunCommands[5]).To(Equal([]string{"chown", "root:utmp", "/fake-dir/data/root_log/btmp"}))
-			Expect(cmdRunner.RunCommands[6]).To(Equal([]string{"chmod", "0600", "/fake-dir/data/root_log/btmp"}))
+			Expect(cmdRunner.RunCommands).To(ContainElement([]string{"touch", "/fake-dir/data/root_log/btmp"}))
+			Expect(cmdRunner.RunCommands).To(ContainElement([]string{"chown", "root:utmp", "/fake-dir/data/root_log/btmp"}))
+			Expect(cmdRunner.RunCommands).To(ContainElement([]string{"chmod", "0600", "/fake-dir/data/root_log/btmp"}))
 
-			Expect(cmdRunner.RunCommands[7]).To(Equal([]string{"touch", "/fake-dir/data/root_log/wtmp"}))
-			Expect(cmdRunner.RunCommands[8]).To(Equal([]string{"chown", "root:utmp", "/fake-dir/data/root_log/wtmp"}))
-			Expect(cmdRunner.RunCommands[9]).To(Equal([]string{"chmod", "0664", "/fake-dir/data/root_log/wtmp"}))
+			Expect(cmdRunner.RunCommands).To(ContainElement([]string{"touch", "/fake-dir/data/root_log/wtmp"}))
+			Expect(cmdRunner.RunCommands).To(ContainElement([]string{"chown", "root:utmp", "/fake-dir/data/root_log/wtmp"}))
+			Expect(cmdRunner.RunCommands).To(ContainElement([]string{"chmod", "0664", "/fake-dir/data/root_log/wtmp"}))
 		})
 
 		Context("mounting root_log into /var/log", func() {
@@ -2993,6 +3006,19 @@ unit: sectors
 		})
 	})
 
+	Describe("SetupIPv6", func() {
+		It("delegates to the NetManager", func() {
+			netManager.SetupIPv6Err = errors.New("fake-err")
+
+			err := platform.SetupIPv6(boshsettings.IPv6{Enable: true})
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("fake-err"))
+
+			Expect(netManager.SetupIPv6Config).To(Equal(boshsettings.IPv6{Enable: true}))
+			Expect(netManager.SetupIPv6StopCh).To(BeNil())
+		})
+	})
+
 	Describe("SetupNetworking", func() {
 		It("delegates to the NetManager", func() {
 			networks := boshsettings.Networks{}
@@ -3076,6 +3102,38 @@ unit: sectors
 		})
 	})
 
+	Describe("RemoveStaticLibraries", func() {
+		It("removes listed static libraries", func() {
+			staticLibrariesListPath := path.Join(dirProvider.EtcDir(), "static_libraries_list")
+			fs.WriteFileString(staticLibrariesListPath, "static.a\nlibrary.a")
+			err := platform.RemoveStaticLibraries(staticLibrariesListPath)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cmdRunner.RunCommands).To(HaveLen(2))
+			Expect(cmdRunner.RunCommands[0]).To(Equal([]string{"rm", "-rf", "static.a"}))
+			Expect(cmdRunner.RunCommands[1]).To(Equal([]string{"rm", "-rf", "library.a"}))
+		})
+
+		Context("when there is an error reading the static libraries list file", func() {
+			It("should return an error", func() {
+				err := platform.RemoveStaticLibraries("non-existent-path")
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("Unable to read static libraries list file"))
+			})
+		})
+
+		Context("when there is an error removing a static library", func() {
+			It("should return an error", func() {
+				cmdRunner.AddCmdResult("rm -rf library.a", fakesys.FakeCmdResult{Error: errors.New("oh noes")})
+				staticLibrariesListPath := path.Join(dirProvider.EtcDir(), "static_libraries_list")
+				fs.WriteFileString(staticLibrariesListPath, "static.a\nlibrary.a")
+				err := platform.RemoveStaticLibraries(staticLibrariesListPath)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("oh noes"))
+				Expect(cmdRunner.RunCommands).To(HaveLen(2))
+			})
+		})
+	})
+
 	Describe("SaveDNSRecords", func() {
 		var (
 			dnsRecords boshsettings.DNSRecords
@@ -3153,4 +3211,54 @@ unit: sectors
 			Expect(hostsFileContents).Should(MatchRegexp("fake-ip1\\s+fake-name1\\n"))
 		})
 	})
+
+	Describe("SetupDNSRecordFile", func() {
+
+		It("creates a DNS record file with specific permissions", func() {
+			recordsJSONFile, err := platform.GetFs().TempFile("records_json")
+			Expect(err).ToNot(HaveOccurred())
+
+			err = platform.SetupRecordsJSONPermission(recordsJSONFile.Name())
+			Expect(err).NotTo(HaveOccurred())
+
+			basePathStat := fs.GetFileTestStat(recordsJSONFile.Name())
+
+			Expect(basePathStat).ToNot(BeNil())
+			Expect(basePathStat.FileType).To(Equal(fakesys.FakeFileTypeFile))
+			Expect(basePathStat.FileMode).To(Equal(os.FileMode(0640)))
+			Expect(basePathStat.Username).To(Equal("root"))
+			Expect(basePathStat.Groupname).To(Equal("vcap"))
+		})
+
+		Context("when chmod fails", func() {
+			BeforeEach(func() {
+				fs.ChmodErr = errors.New("some chmod error")
+			})
+
+			It("should return error", func() {
+				recordsJSONFile, err := platform.GetFs().TempFile("records_json")
+				Expect(err).ToNot(HaveOccurred())
+
+				err = platform.SetupRecordsJSONPermission(recordsJSONFile.Name())
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("Chmoding records JSON file: some chmod error"))
+			})
+		})
+
+		Context("when chown fails", func() {
+			BeforeEach(func() {
+				fs.ChownErr = errors.New("some chown error")
+			})
+
+			It("should return error", func() {
+				recordsJSONFile, err := platform.GetFs().TempFile("records_json")
+				Expect(err).ToNot(HaveOccurred())
+
+				err = platform.SetupRecordsJSONPermission(recordsJSONFile.Name())
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("Chowning records JSON file: some chown error"))
+			})
+		})
+	})
+
 }

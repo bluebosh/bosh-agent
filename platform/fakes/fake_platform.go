@@ -48,6 +48,9 @@ type FakePlatform struct {
 	UserPasswords         map[string]string
 	SetupHostnameHostname string
 
+	SetupIPv6Config boshsettings.IPv6
+	SetupIPv6Error  error
+
 	SaveDNSRecordsError      error
 	SaveDNSRecordsHostname   string
 	SaveDNSRecordsDNSRecords boshsettings.DNSRecords
@@ -127,9 +130,11 @@ type FakePlatform struct {
 	IsMountPointResult        bool
 	IsMountPointErr           error
 
-	PackageFileListPath    string
-	IsRemoveDevToolsCalled bool
-	IsRemoveDevToolsError  error
+	PackageFileListPath           string
+	IsRemoveDevToolsCalled        bool
+	IsRemoveDevToolsError         error
+	IsRemoveStaticLibrariesCalled bool
+	IsRemoveStaticLibrariesError  error
 
 	MountedDevicePaths []string
 
@@ -157,6 +162,9 @@ type FakePlatform struct {
 
 	SetupRootDiskCalledTimes int
 	SetupRootDiskError       error
+
+	SetupRecordsJSONPermissionPath string
+	SetupRecordsJSONPermissionErr  error
 }
 
 func NewFakePlatform() (platform *FakePlatform) {
@@ -269,6 +277,11 @@ func (p *FakePlatform) SaveDNSRecords(dnsRecords boshsettings.DNSRecords, hostna
 	p.SaveDNSRecordsDNSRecords = dnsRecords
 	p.SaveDNSRecordsHostname = hostname
 	return p.SaveDNSRecordsError
+}
+
+func (p *FakePlatform) SetupIPv6(config boshsettings.IPv6) error {
+	p.SetupIPv6Config = config
+	return p.SetupIPv6Error
 }
 
 func (p *FakePlatform) SetupHostname(hostname string) (err error) {
@@ -460,6 +473,12 @@ func (p *FakePlatform) RemoveDevTools(packageFileListPath string) error {
 	return p.IsRemoveDevToolsError
 }
 
+func (p *FakePlatform) RemoveStaticLibraries(packageFileListPath string) error {
+	p.IsRemoveStaticLibrariesCalled = true
+	p.PackageFileListPath = packageFileListPath
+	return p.IsRemoveStaticLibrariesError
+}
+
 func (p *FakePlatform) AssociateDisk(name string, settings boshsettings.DiskSettings) error {
 	p.AssociateDiskCallCount++
 	p.AssociateDiskArgs = append(p.AssociateDiskArgs, struct {
@@ -475,4 +494,9 @@ func (p *FakePlatform) AssociateDisk(name string, settings boshsettings.DiskSett
 
 func (p *FakePlatform) AssociateDiskArgsForCall(i int) (string, boshsettings.DiskSettings) {
 	return p.AssociateDiskArgs[i].n, p.AssociateDiskArgs[i].s
+}
+
+func (p *FakePlatform) SetupRecordsJSONPermission(path string) error {
+	p.SetupRecordsJSONPermissionPath = path
+	return p.SetupRecordsJSONPermissionErr
 }

@@ -15,9 +15,10 @@ import (
 	boshcrypto "github.com/cloudfoundry/bosh-utils/crypto"
 	bosherr "github.com/cloudfoundry/bosh-utils/errors"
 	boshlog "github.com/cloudfoundry/bosh-utils/logger"
+	boshuuid "github.com/cloudfoundry/bosh-utils/uuid"
 )
 
-const localDNSStateFilename = "local_dns_state.json"
+const localDNSStateFilename = "records.json"
 
 type SyncDNS struct {
 	blobstore       boshblob.DigestBlobstore
@@ -60,17 +61,8 @@ func (a SyncDNS) Cancel() error {
 }
 
 func (a SyncDNS) Run(blobID string, multiDigest boshcrypto.MultipleDigest, version uint64) (string, error) {
-	requestVersionStale, err := a.isLocalStateGreaterThanOrEqual(version)
-	if err != nil {
-		return "", bosherr.WrapError(err, "reading local DNS state")
-	}
-
-	if requestVersionStale {
+	if !a.needsUpdateWithLock(version) {
 		return "synced", nil
-	}
-
-	if err != nil {
-		return "", bosherr.WrapError(err, "Parsing blob digest")
 	}
 
 	filePath, err := a.blobstore.Get(blobID, multiDigest)
@@ -92,33 +84,21 @@ func (a SyncDNS) Run(blobID string, multiDigest boshcrypto.MultipleDigest, versi
 		return "", bosherr.WrapErrorf(err, "reading %s from blobstore", filePath)
 	}
 
-	dnsRecords := boshsettings.DNSRecords{}
-	err = json.Unmarshal(contents, &dnsRecords)
-	if err != nil {
-		return "", bosherr.WrapError(err, "unmarshalling DNS records")
-	}
-
 	a.lock.Lock()
 	defer a.lock.Unlock()
 
-	localDNSState := state.LocalDNSState{}
 	syncDNSState := a.createSyncDNSState()
-	if syncDNSState.StateFileExists() {
-		localDNSState, err = syncDNSState.LoadState()
-		if err != nil {
-			return "", bosherr.WrapError(err, "loading local DNS state")
-		}
-	}
-
-	//Checking again since don't want to keep lock during blobstore operations
-	if localDNSState.Version >= version {
+	if !syncDNSState.NeedsUpdate(version) {
 		return "synced", nil
 	}
 
-	localDNSState.Version = version
-	err = syncDNSState.SaveState(localDNSState)
-	if err != nil {
-		return "", bosherr.WrapError(err, "saving local DNS state")
+	dnsRecords := boshsettings.DNSRecords{}
+	if err := json.Unmarshal(contents, &dnsRecords); err != nil {
+		return "", bosherr.WrapError(err, "unmarshalling DNS records")
+	}
+
+	if dnsRecords.Version != version {
+		return "", bosherr.Error("version from unpacked dns blob does not match version supplied by director")
 	}
 
 	err = a.platform.SaveDNSRecords(dnsRecords, a.settingsService.GetSettings().AgentID)
@@ -126,28 +106,22 @@ func (a SyncDNS) Run(blobID string, multiDigest boshcrypto.MultipleDigest, versi
 		return "", bosherr.WrapError(err, "saving DNS records")
 	}
 
+	err = syncDNSState.SaveState(contents)
+	if err != nil {
+		return "", bosherr.WrapError(err, "saving local DNS state")
+	}
+
 	return "synced", nil
 }
 
 func (a SyncDNS) createSyncDNSState() state.SyncDNSState {
-	stateFilePath := filepath.Join(a.platform.GetDirProvider().BaseDir(), localDNSStateFilename)
-	return state.NewSyncDNSState(a.platform.GetFs(), stateFilePath)
+	stateFilePath := filepath.Join(a.platform.GetDirProvider().InstanceDNSDir(), localDNSStateFilename)
+	return state.NewSyncDNSState(a.platform, stateFilePath, boshuuid.NewGenerator())
 }
 
-func (a SyncDNS) isLocalStateGreaterThanOrEqual(version uint64) (bool, error) {
+func (a SyncDNS) needsUpdateWithLock(version uint64) bool {
 	a.lock.Lock()
 	defer a.lock.Unlock()
 
-	syncDNSState := a.createSyncDNSState()
-
-	if !syncDNSState.StateFileExists() {
-		return false, nil
-	}
-
-	localDNSState, err := syncDNSState.LoadState()
-	if err != nil {
-		return false, bosherr.WrapError(err, "loading local DNS state")
-	}
-
-	return (localDNSState.Version >= version), nil
+	return a.createSyncDNSState().NeedsUpdate(version)
 }

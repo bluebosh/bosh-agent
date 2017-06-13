@@ -16,8 +16,9 @@ import (
 
 const mainLogTag = "main"
 
-func runAgent(logger logger.Logger) chan error {
+func runAgent(opts boshapp.Options, logger logger.Logger) chan error {
 	errCh := make(chan error, 1)
+
 	go func() {
 		defer logger.HandlePanic("Main")
 
@@ -26,7 +27,7 @@ func runAgent(logger logger.Logger) chan error {
 		fs := boshsys.NewOsFileSystem(logger)
 		app := boshapp.New(logger, fs)
 
-		err := app.Setup(os.Args)
+		err := app.Setup(opts)
 		if err != nil {
 			logger.Error(mainLogTag, "App setup %s", err.Error())
 			errCh <- err
@@ -44,9 +45,20 @@ func runAgent(logger logger.Logger) chan error {
 }
 
 func startAgent(logger logger.Logger) error {
+	opts, err := boshapp.ParseOptions(os.Args)
+	if err != nil {
+		logger.Error(mainLogTag, "Parsing options %s", err.Error())
+		return err
+	}
+
+	if opts.VersionCheck {
+		fmt.Println(VersionLabel)
+		os.Exit(0)
+	}
+
 	sigCh := make(chan os.Signal, 8)
 	signal.Notify(sigCh, syscall.SIGTERM, os.Interrupt, os.Kill)
-	errCh := runAgent(logger)
+	errCh := runAgent(opts, logger)
 	for {
 		select {
 		case sig := <-sigCh:

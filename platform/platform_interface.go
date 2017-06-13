@@ -43,6 +43,7 @@ type Platform interface {
 	SetupRootDisk(ephemeralDiskPath string) (err error)
 	SetupSSH(publicKey []string, username string) (err error)
 	SetUserPassword(user, encryptedPwd string) (err error)
+	SetupIPv6(boshsettings.IPv6) error
 	SetupHostname(hostname string) (err error)
 	SetupNetworking(networks boshsettings.Networks) (err error)
 	SetupLogrotate(groupName, basePath, size string) (err error)
@@ -58,6 +59,7 @@ type Platform interface {
 	SetupRuntimeConfiguration() (err error)
 	SetupLogDir() (err error)
 	SetupLoggingAndAuditing() (err error)
+	SetupRecordsJSONPermission(path string) error
 
 	// Disk management
 	MountPersistentDisk(diskSettings boshsettings.DiskSettings, mountPoint string) error
@@ -87,4 +89,5 @@ type Platform interface {
 	GetHostPublicKey() (string, error)
 
 	RemoveDevTools(packageFileListPath string) error
+	RemoveStaticLibraries(packageFileListPath string) error
 }

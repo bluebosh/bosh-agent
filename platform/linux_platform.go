@@ -413,6 +413,18 @@ func (p linux) SetUserPassword(user, encryptedPwd string) (err error) {
 	return
 }
 
+func (p linux) SetupRecordsJSONPermission(path string) error {
+	if err := p.fs.Chmod(path, 0640); err != nil {
+		return bosherr.WrapError(err, "Chmoding records JSON file")
+	}
+
+	if err := p.fs.Chown(path, "root:vcap"); err != nil {
+		return bosherr.WrapError(err, "Chowning records JSON file")
+	}
+
+	return nil
+}
+
 const EtcHostsTemplate = `127.0.0.1 localhost {{ . }}
 
 # The following lines are desirable for IPv6 capable hosts
@@ -451,6 +463,10 @@ func (p linux) SaveDNSRecords(dnsRecords boshsettings.DNSRecords, hostname strin
 	}
 
 	return nil
+}
+
+func (p linux) SetupIPv6(config boshsettings.IPv6) error {
+	return p.netManager.SetupIPv6(config, nil)
 }
 
 func (p linux) SetupHostname(hostname string) error {
@@ -912,6 +928,17 @@ func (p linux) SetupLogDir() error {
 	_, _, _, err = p.cmdRunner.RunCommand("chmod", "0750", auditDirPath)
 	if err != nil {
 		return bosherr.WrapError(err, "Chmoding audit log dir")
+	}
+
+	sysstatDirPath := path.Join(boshRootLogPath, "sysstat")
+	_, _, _, err = p.cmdRunner.RunCommand("mkdir", "-p", sysstatDirPath)
+	if err != nil {
+		return bosherr.WrapError(err, "Creating sysstat log dir")
+	}
+
+	_, _, _, err = p.cmdRunner.RunCommand("chmod", "0755", sysstatDirPath)
+	if err != nil {
+		return bosherr.WrapError(err, "Chmoding sysstat log dir")
 	}
 
 	// change ownership
@@ -1409,6 +1436,24 @@ func (p linux) RemoveDevTools(packageFileListPath string) error {
 		_, _, _, err = p.cmdRunner.RunCommand("rm", "-rf", pkgFile)
 		if err != nil {
 			return bosherr.WrapErrorf(err, "Unable to remove package file: %s", pkgFile)
+		}
+	}
+
+	return nil
+}
+
+func (p linux) RemoveStaticLibraries(staticLibrariesListFilePath string) error {
+	content, err := p.fs.ReadFileString(staticLibrariesListFilePath)
+	if err != nil {
+		return bosherr.WrapErrorf(err, "Unable to read static libraries list file: %s", staticLibrariesListFilePath)
+	}
+	content = strings.TrimSpace(content)
+	librariesList := strings.Split(content, "\n")
+
+	for _, library := range librariesList {
+		_, _, _, err = p.cmdRunner.RunCommand("rm", "-rf", library)
+		if err != nil {
+			return bosherr.WrapErrorf(err, "Unable to remove static library: %s", library)
 		}
 	}
 

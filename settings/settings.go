@@ -175,6 +175,10 @@ func (e Env) GetRemoveDevTools() bool {
 	return e.Bosh.RemoveDevTools
 }
 
+func (e Env) GetRemoveStaticLibraries() bool {
+	return e.Bosh.RemoveStaticLibraries
+}
+
 func (e Env) GetAuthorizedKeys() []string {
 	return e.Bosh.AuthorizedKeys
 }
@@ -189,15 +193,30 @@ func (e Env) GetSwapSizeInBytes() *uint64 {
 }
 
 type BoshEnv struct {
-	Password         string   `json:"password"`
-	KeepRootPassword bool     `json:"keep_root_password"`
-	RemoveDevTools   bool     `json:"remove_dev_tools"`
-	AuthorizedKeys   []string `json:"authorized_keys"`
-	SwapSizeInMB     *uint64  `json:"swap_size"`
+	Password              string   `json:"password"`
+	KeepRootPassword      bool     `json:"keep_root_password"`
+	RemoveDevTools        bool     `json:"remove_dev_tools"`
+	RemoveStaticLibraries bool     `json:"remove_static_libraries"`
+	AuthorizedKeys        []string `json:"authorized_keys"`
+	SwapSizeInMB          *uint64  `json:"swap_size"`
+	Mbus                  struct {
+		Cert CertKeyPair `json:"cert"`
+	} `json:"mbus"`
+
+	IPv6 IPv6 `json:"ipv6"`
+}
+
+type CertKeyPair struct {
+	PrivateKey  string `json:"private_key"`
+	Certificate string `json:"certificate"`
+}
+
+type IPv6 struct {
+	Enable bool `json:"enable"`
 }
 
 type DNSRecords struct {
-	Version uint32      `json:"Version"`
+	Version uint64      `json:"Version"`
 	Records [][2]string `json:"records"`
 }
 
