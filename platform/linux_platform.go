@@ -1034,7 +1034,7 @@ func (p linux) MountPersistentDisk(diskSetting boshsettings.DiskSettings, mountP
 	if err != nil {
 		return bosherr.WrapError(err, "Checking mount point")
 	}
-	p.logger.Info(logTag, "realPath = %s, devicePath = %s, isMountPoint = %s", realPath, devicePath, isMountPoint)
+	p.logger.Info(logTag, "realPath = %s, devicePath = %s, isMountPoint = %v", realPath, devicePath, isMountPoint)
 
 	partitionPath := realPath + "1"
 	if strings.Contains(realPath, "/dev/mapper/") {
