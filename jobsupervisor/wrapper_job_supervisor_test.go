@@ -5,9 +5,6 @@ import (
 
 	"encoding/json"
 	"errors"
-	"path/filepath"
-	"time"
-
 	"github.com/cloudfoundry/bosh-agent/agent/alert"
 	"github.com/cloudfoundry/bosh-agent/jobsupervisor/fakes"
 	fakemonit "github.com/cloudfoundry/bosh-agent/jobsupervisor/monit/fakes"
@@ -17,6 +14,8 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/pivotal-golang/clock/fakeclock"
+	"path/filepath"
+	"time"
 )
 
 var _ = Describe("WrapperJobSupervisor", func() {
@@ -61,7 +60,7 @@ var _ = Describe("WrapperJobSupervisor", func() {
 	})
 
 	It("Reload should delegate to the underlying job supervisor", func() {
-		error := errors.New("BOOM")
+		error := errors.New("BOOM!!!")
 		fakeSupervisor.ReloadErr = error
 		err := wrapper.Reload()
 		Expect(fakeSupervisor.Reloaded).To(BeTrue())
@@ -70,7 +69,7 @@ var _ = Describe("WrapperJobSupervisor", func() {
 
 	Describe("Start", func() {
 		It("should delegate to the underlying job supervisor", func() {
-			error := errors.New("BOOM")
+			error := errors.New("BOOM!!!")
 			fakeSupervisor.StartErr = error
 			err := wrapper.Start()
 			Expect(fakeSupervisor.Started).To(BeTrue())
@@ -91,7 +90,7 @@ var _ = Describe("WrapperJobSupervisor", func() {
 	})
 
 	It("Stop should delegate to the underlying job supervisor", func() {
-		error := errors.New("BOOM")
+		error := errors.New("BOOM!!!")
 		fakeSupervisor.StopErr = error
 		err := wrapper.Stop()
 		Expect(fakeSupervisor.Stopped).To(BeTrue())
@@ -99,7 +98,7 @@ var _ = Describe("WrapperJobSupervisor", func() {
 	})
 
 	It("StopAndWait should delegate to the underlying job supervisor", func() {
-		error := errors.New("BOOM")
+		error := errors.New("BOOM!!!")
 		fakeSupervisor.StopErr = error
 		err := wrapper.StopAndWait()
 		Expect(fakeSupervisor.StoppedAndWaited).To(BeTrue())
@@ -108,7 +107,7 @@ var _ = Describe("WrapperJobSupervisor", func() {
 
 	Describe("Unmointor", func() {
 		It("Unmonitor should delegate to the underlying job supervisor", func() {
-			error := errors.New("BOOM")
+			error := errors.New("BOOM!!!")
 			fakeSupervisor.UnmonitorErr = error
 			err := wrapper.Unmonitor()
 			Expect(fakeSupervisor.Unmonitored).To(BeTrue())
@@ -139,14 +138,14 @@ var _ = Describe("WrapperJobSupervisor", func() {
 		fakeSupervisor.ProcessesStatus = []Process{
 			{},
 		}
-		fakeSupervisor.ProcessesError = errors.New("BOOM")
+		fakeSupervisor.ProcessesError = errors.New("BOOM!!!")
 		processes, err := wrapper.Processes()
 		Expect(processes).To(Equal(fakeSupervisor.ProcessesStatus))
 		Expect(err).To(Equal(fakeSupervisor.ProcessesError))
 	})
 
 	It("AddJob should delegate to the underlying job supervisor", func() {
-		error := errors.New("BOOM")
+		error := errors.New("BOOM!!!")
 		fakeSupervisor.StartErr = error
 		_ = wrapper.AddJob("name", 0, "path")
 		Expect(fakeSupervisor.AddJobArgs).To(Equal([]fakes.AddJobArgs{
@@ -159,7 +158,7 @@ var _ = Describe("WrapperJobSupervisor", func() {
 	})
 
 	It("RemoveAllJobs should delegate to the underlying job supervisor", func() {
-		fakeSupervisor.RemovedAllJobsErr = errors.New("BOOM")
+		fakeSupervisor.RemovedAllJobsErr = errors.New("BOOM!!!")
 		err := wrapper.RemoveAllJobs()
 		Expect(fakeSupervisor.RemovedAllJobs).To(BeTrue())
 		Expect(err).To(Equal(fakeSupervisor.RemovedAllJobsErr))
