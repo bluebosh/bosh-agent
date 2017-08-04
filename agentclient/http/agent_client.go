@@ -5,16 +5,18 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cloudfoundry/bosh-agent/agent/action"
 	"github.com/cloudfoundry/bosh-agent/agentclient"
 	"github.com/cloudfoundry/bosh-agent/agentclient/applyspec"
+	"github.com/cloudfoundry/bosh-agent/settings"
 	bosherr "github.com/cloudfoundry/bosh-utils/errors"
 	"github.com/cloudfoundry/bosh-utils/httpclient"
 	boshlog "github.com/cloudfoundry/bosh-utils/logger"
 	boshretry "github.com/cloudfoundry/bosh-utils/retrystrategy"
 )
 
-type AgentClient struct {
-	AgentRequest        agentRequest
+type agentClient struct {
+	agentRequest        agentRequest
 	getTaskDelay        time.Duration
 	toleratedErrorCount int
 	logger              boshlog.Logger
@@ -36,8 +38,8 @@ func NewAgentClient(
 		endpoint:   agentEndpoint,
 		httpClient: httpClient,
 	}
-	return &AgentClient{
-		AgentRequest:        agentRequest,
+	return &agentClient{
+		agentRequest:        agentRequest,
 		getTaskDelay:        getTaskDelay,
 		toleratedErrorCount: toleratedErrorCount,
 		logger:              logger,
@@ -45,9 +47,9 @@ func NewAgentClient(
 	}
 }
 
-func (c *AgentClient) Ping() (string, error) {
+func (c *agentClient) Ping() (string, error) {
 	var response SimpleTaskResponse
-	err := c.AgentRequest.Send("ping", []interface{}{}, &response)
+	err := c.agentRequest.Send("ping", []interface{}{}, &response)
 	if err != nil {
 		return "", bosherr.WrapError(err, "Sending ping to the agent")
 	}
@@ -55,19 +57,19 @@ func (c *AgentClient) Ping() (string, error) {
 	return response.Value, nil
 }
 
-func (c *AgentClient) Stop() error {
-	_, err := c.SendAsyncTaskMessage("stop", []interface{}{})
+func (c *agentClient) Stop() error {
+	_, err := c.sendAsyncTaskMessage("stop", []interface{}{})
 	return err
 }
 
-func (c *AgentClient) Apply(spec applyspec.ApplySpec) error {
-	_, err := c.SendAsyncTaskMessage("apply", []interface{}{spec})
+func (c *agentClient) Apply(spec applyspec.ApplySpec) error {
+	_, err := c.sendAsyncTaskMessage("apply", []interface{}{spec})
 	return err
 }
 
-func (c *AgentClient) Start() error {
+func (c *agentClient) Start() error {
 	var response SimpleTaskResponse
-	err := c.AgentRequest.Send("start", []interface{}{}, &response)
+	err := c.agentRequest.Send("start", []interface{}{}, &response)
 	if err != nil {
 		return bosherr.WrapError(err, "Starting agent services")
 	}
@@ -79,11 +81,11 @@ func (c *AgentClient) Start() error {
 	return nil
 }
 
-func (c *AgentClient) GetState() (agentclient.AgentState, error) {
+func (c *agentClient) GetState() (agentclient.AgentState, error) {
 	var response StateResponse
 
 	getStateRetryable := boshretry.NewRetryable(func() (bool, error) {
-		err := c.AgentRequest.Send("get_state", []interface{}{}, &response)
+		err := c.agentRequest.Send("get_state", []interface{}{}, &response)
 		if err != nil {
 			return true, bosherr.WrapError(err, "Sending get_state to the agent")
 		}
@@ -104,9 +106,9 @@ func (c *AgentClient) GetState() (agentclient.AgentState, error) {
 	return agentState, err
 }
 
-func (c *AgentClient) ListDisk() ([]string, error) {
+func (c *agentClient) ListDisk() ([]string, error) {
 	var response ListResponse
-	err := c.AgentRequest.Send("list_disk", []interface{}{}, &response)
+	err := c.agentRequest.Send("list_disk", []interface{}{}, &response)
 	if err != nil {
 		return []string{}, bosherr.WrapError(err, "Sending 'list_disk' to the agent")
 	}
@@ -114,23 +116,28 @@ func (c *AgentClient) ListDisk() ([]string, error) {
 	return response.Value, nil
 }
 
-func (c *AgentClient) MountDisk(diskCID string) error {
-	_, err := c.SendAsyncTaskMessage("mount_disk", []interface{}{diskCID})
+func (c *agentClient) MountDisk(diskCID string) error {
+	_, err := c.sendAsyncTaskMessage("mount_disk", []interface{}{diskCID})
 	return err
 }
 
-func (c *AgentClient) UnmountDisk(diskCID string) error {
-	_, err := c.SendAsyncTaskMessage("unmount_disk", []interface{}{diskCID})
+func (c *agentClient) UnmountDisk(diskCID string) error {
+	_, err := c.sendAsyncTaskMessage("unmount_disk", []interface{}{diskCID})
 	return err
 }
 
-func (c *AgentClient) MigrateDisk() error {
-	_, err := c.SendAsyncTaskMessage("migrate_disk", []interface{}{})
+func (c *agentClient) MigrateDisk() error {
+	_, err := c.sendAsyncTaskMessage("migrate_disk", []interface{}{})
 	return err
 }
 
-func (c *AgentClient) RunScript(scriptName string, options map[string]interface{}) error {
-	_, err := c.SendAsyncTaskMessage("run_script", []interface{}{scriptName, options})
+func (c *agentClient) UpdateSettings(settings settings.UpdateSettings) error {
+	_, err := c.sendAsyncTaskMessage("update_settings", []interface{}{settings})
+	return err
+}
+
+func (c *agentClient) RunScript(scriptName string, options map[string]interface{}) error {
+	_, err := c.sendAsyncTaskMessage("run_script", []interface{}{scriptName, options})
 
 	if err != nil && strings.Contains(err.Error(), "unknown message") {
 		// ignore 'unknown message' errors for backwards compatibility with older stemcells
@@ -141,7 +148,7 @@ func (c *AgentClient) RunScript(scriptName string, options map[string]interface{
 	return err
 }
 
-func (c *AgentClient) CompilePackage(packageSource agentclient.BlobRef, compiledPackageDependencies []agentclient.BlobRef) (compiledPackageRef agentclient.BlobRef, err error) {
+func (c *agentClient) CompilePackage(packageSource agentclient.BlobRef, compiledPackageDependencies []agentclient.BlobRef) (compiledPackageRef agentclient.BlobRef, err error) {
 	dependencies := make(map[string]BlobRef, len(compiledPackageDependencies))
 	for _, dependency := range compiledPackageDependencies {
 		dependencies[dependency.Name] = BlobRef{
@@ -160,7 +167,7 @@ func (c *AgentClient) CompilePackage(packageSource agentclient.BlobRef, compiled
 		dependencies,
 	}
 
-	responseValue, err := c.SendAsyncTaskMessage("compile_package", args)
+	responseValue, err := c.sendAsyncTaskMessage("compile_package", args)
 	if err != nil {
 		return agentclient.BlobRef{}, bosherr.WrapError(err, "Sending 'compile_package' to the agent")
 	}
@@ -190,13 +197,13 @@ func (c *AgentClient) CompilePackage(packageSource agentclient.BlobRef, compiled
 	return compiledPackageRef, nil
 }
 
-func (c *AgentClient) DeleteARPEntries(ips []string) error {
-	return c.AgentRequest.Send("delete_arp_entries", []interface{}{map[string][]string{"ips": ips}}, &TaskResponse{})
+func (c *agentClient) DeleteARPEntries(ips []string) error {
+	return c.agentRequest.Send("delete_arp_entries", []interface{}{map[string][]string{"ips": ips}}, &TaskResponse{})
 }
 
-func (c *AgentClient) SyncDNS(blobID, sha1 string, version uint64) (string, error) {
+func (c *agentClient) SyncDNS(blobID, sha1 string, version uint64) (string, error) {
 	var response SyncDNSResponse
-	err := c.AgentRequest.Send("sync_dns", []interface{}{blobID, sha1, version}, &response)
+	err := c.agentRequest.Send("sync_dns", []interface{}{blobID, sha1, version}, &response)
 	if err != nil {
 		return "", bosherr.WrapError(err, "Sending 'sync_dns' to the agent")
 	}
@@ -204,9 +211,18 @@ func (c *AgentClient) SyncDNS(blobID, sha1 string, version uint64) (string, erro
 	return response.Value, nil
 }
 
-func (c *AgentClient) SendAsyncTaskMessage(method string, arguments []interface{}) (value map[string]interface{}, err error) {
+func (c *agentClient) SSH(cmd string, params action.SSHParams) error {
+	err := c.agentRequest.Send("ssh", []interface{}{cmd, params}, &SSHResponse{})
+	if err != nil {
+		return bosherr.WrapError(err, "Sending 'ssh' to the agent")
+	}
+
+	return nil
+}
+
+func (c *agentClient) sendAsyncTaskMessage(method string, arguments []interface{}) (value map[string]interface{}, err error) {
 	var response TaskResponse
-	err = c.AgentRequest.Send(method, arguments, &response)
+	err = c.agentRequest.Send(method, arguments, &response)
 	if err != nil {
 		return value, bosherr.WrapErrorf(err, "Sending '%s' to the agent", method)
 	}
@@ -219,7 +235,7 @@ func (c *AgentClient) SendAsyncTaskMessage(method string, arguments []interface{
 	sendErrors := 0
 	getTaskRetryable := boshretry.NewRetryable(func() (bool, error) {
 		var response TaskResponse
-		err = c.AgentRequest.Send("get_task", []interface{}{agentTaskID}, &response)
+		err = c.agentRequest.Send("get_task", []interface{}{agentTaskID}, &response)
 		if err != nil {
 			sendErrors++
 			shouldRetry := sendErrors <= c.toleratedErrorCount

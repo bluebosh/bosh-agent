@@ -49,13 +49,17 @@ func init() {
 				platform    *fakeplatform.FakePlatform
 				dirProvider boshdir.Provider
 
+				settingsSource  *fakeinf.FakeSettingsSource
 				settingsService *fakesettings.FakeSettingsService
+				updateSettings  *boshsettings.UpdateSettings
 			)
 
 			BeforeEach(func() {
 				platform = fakeplatform.NewFakePlatform()
 				dirProvider = boshdir.NewProvider("/var/vcap")
+				settingsSource = &fakeinf.FakeSettingsSource{}
 				settingsService = &fakesettings.FakeSettingsService{}
+				updateSettings = &boshsettings.UpdateSettings{}
 			})
 
 			bootstrap := func() error {

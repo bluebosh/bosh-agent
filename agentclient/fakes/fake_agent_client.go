@@ -4,8 +4,10 @@ package agentclientfakes
 import (
 	"sync"
 
+	"github.com/cloudfoundry/bosh-agent/agent/action"
 	"github.com/cloudfoundry/bosh-agent/agentclient"
 	"github.com/cloudfoundry/bosh-agent/agentclient/applyspec"
+	"github.com/cloudfoundry/bosh-agent/settings"
 )
 
 type FakeAgentClient struct {
@@ -910,8 +912,12 @@ func (fake *FakeAgentClient) Invocations() map[string][][]interface{} {
 	defer fake.deleteARPEntriesMutex.RUnlock()
 	fake.syncDNSMutex.RLock()
 	defer fake.syncDNSMutex.RUnlock()
+	fake.updateSettingsMutex.RLock()
+	defer fake.updateSettingsMutex.RUnlock()
 	fake.runScriptMutex.RLock()
 	defer fake.runScriptMutex.RUnlock()
+	fake.sSHMutex.RLock()
+	defer fake.sSHMutex.RUnlock()
 	return fake.invocations
 }
 
