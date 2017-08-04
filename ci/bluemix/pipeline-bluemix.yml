@@ -1,0 +1,72 @@
+# fly -t cpi set-pipeline -p bosh-agent-bluemix -c ci/bluemix/pipeline-bluemix.yml -l ~/workspace/bosh-ecpi-private/credentials/bosh-agent-ci-creds.yml
+
+---
+jobs:
+- name: test-unit
+  public: true
+  plan:
+    - get: bosh-agent-master
+    - get: bosh-agent
+      trigger: true
+    - task: test-unit
+      file: bosh-agent-master/ci/bluemix/tasks/test-unit.yml
+
+- name: promote
+  public: true
+  serial: true
+  plan:
+    - aggregate:
+      - get: bosh-agent-master
+      - get: bosh-agent
+        trigger: true
+        passed: [test-unit]
+      - get: version-semver
+        params: {bump: patch}
+    - put: version-semver
+      params:
+        file: version-semver/number
+    - put: bosh-agent-master
+      params:
+        repository: bosh-agent-master
+        tag: version-semver/number
+        tag_prefix: bmx
+    - aggregate:
+      - task: build-linux
+        file: bosh-agent-master/ci/bluemix/tasks/build-linux.yml
+    - aggregate:
+      - put: release-bucket-linux
+        params:
+          file: compiled-linux-amd64/bosh-agent-*-linux-amd64-bluemix
+
+resources:
+- name: bosh-agent
+  type: git
+  source:
+    uri: https://github.com/bluebosh/bosh-agent
+    branch: bluemix-2.1.4
+
+- name: bosh-agent-master
+  type: git
+  source:
+    uri: git@github.com:bluebosh/bosh-agent.git
+    branch: master
+    private_key: {{git-private-key}}
+
+- name: release-bucket-linux
+  type: s3
+  source:
+    regexp: bosh-agent-(.*)-linux-amd64-bluemix
+    bucket: {{s3_pipeline_bucket_agent}}
+    access_key_id: {{stemcell-sl-os-access-key}}
+    secret_access_key: {{stemcell-sl-os-secret-key}}
+    endpoint: {{stemcell-sl-os-endpoint}}
+
+- name: version-semver
+  type: semver
+  source:
+    driver: s3
+    key: agent-current-version
+    bucket: {{s3_pipeline_bucket_agent}}
+    access_key_id: {{stemcell-sl-os-access-key}}
+    secret_access_key: {{stemcell-sl-os-secret-key}}
+    endpoint: {{stemcell-sl-os-endpoint}}
