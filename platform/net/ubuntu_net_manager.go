@@ -3,6 +3,7 @@ package net
 import (
 	"bytes"
 	"path"
+	"regexp"
 	"sort"
 	"strings"
 	"text/template"
@@ -176,21 +177,32 @@ func (net UbuntuNetManager) SetupNetworking(networks boshsettings.Networks, errC
 		net.restartNetworkingInterfaces(net.ifaceNames(dhcpConfigs, staticConfigs))
 	}
 
-	//staticAddresses, dynamicAddresses := net.ifaceAddresses(staticConfigs, dhcpConfigs)
+	staticAddresses, dynamicAddresses := net.ifaceAddresses(staticConfigs, dhcpConfigs)
 
-	//TODO: portal IP could not pass the validation
+	// Experimental: Skip the validation of virtual interfaces(like eth0:0, eth0:1... )
+	staticAddressesWithoutVirtual := []boship.InterfaceAddress{}
+	r, err := regexp.Compile(`:\d+`)
+	if err != nil {
+		return bosherr.WrapError(err, "There is a problem with your regexp.")
+	}
+	for _, addr := range staticAddresses {
+		if r.MatchString(addr.GetInterfaceName()) == true {
+			continue
+		} else {
+			staticAddressesWithoutVirtual = append(staticAddressesWithoutVirtual, addr)
+		}
+	}
+	err = net.interfaceAddressesValidator.Validate(staticAddressesWithoutVirtual)
+	if err != nil {
+		return bosherr.WrapError(err, "Validating static network configuration")
+	}
 
-	//err = net.interfaceAddressesValidator.Validate(staticAddresses)
-	//if err != nil {
-	//	return bosherr.WrapError(err, "Validating static network configuration")
-	//}
+	err = net.dnsValidator.Validate(dnsServers)
+	if err != nil {
+		return bosherr.WrapError(err, "Validating dns configuration")
+	}
 
-	//err = net.dnsValidator.Validate(dnsServers)
-	//if err != nil {
-	//	return bosherr.WrapError(err, "Validating dns configuration")
-	//}
-
-	//net.broadcastIps(append(staticAddresses, dynamicAddresses...), errCh)
+	net.broadcastIps(append(staticAddressesWithoutVirtual, dynamicAddresses...), errCh)
 
 	return nil
 }
@@ -469,4 +481,15 @@ func (net UbuntuNetManager) writeResolvConf(networks boshsettings.Networks) erro
 	}
 
 	return nil
+}
+
+func (net UbuntuNetManager) filterVirtualInterfaces([]StaticInterfaceConfiguration) []string {
+	ifaceNames := []string{}
+	//for _, config := range dhcpConfigs {
+	//	ifaceNames = append(ifaceNames, config.Name)
+	//}
+	//for _, config := range staticConfigs {
+	//	ifaceNames = append(ifaceNames, config.Name)
+	//}
+	return ifaceNames
 }
