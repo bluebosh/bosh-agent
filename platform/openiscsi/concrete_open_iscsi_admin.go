@@ -69,7 +69,18 @@ func (iscsi ConcreteOpenIscsiAdmin) Setup(iqn, username, password string) (err e
 
 	buffer.Reset()
 
-	return iscsi.Restart()
+	err = iscsi.Restart()
+	if err != nil {
+		err = bosherr.WrapError(err, "Restarting iscsi after modifying the /etc/iscsi/iscsid.conf file")
+		return
+	}
+
+	_, _, _, err = iscsi.runner.RunCommand("/etc/init.d/multipath-tools", "restart")
+	if err != nil {
+		err = bosherr.WrapError(err, "Restarting multipath after restarting open-iscsi")
+		return
+	}
+	return
 }
 
 // Open-iscsi initiator file - /etc/iscsi/initiatorname.iscsi
