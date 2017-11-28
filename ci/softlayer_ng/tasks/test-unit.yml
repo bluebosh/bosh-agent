@@ -1,0 +1,13 @@
+---
+platform: linux
+
+image: docker:///bosh/init
+
+inputs:
+- name: bosh-agent-master
+  path: gopath/src/github.com/cloudfoundry/bosh-agent-master
+- name: bosh-agent
+  path: gopath/src/github.com/cloudfoundry/bosh-agent
+
+run:
+  path: gopath/src/github.com/cloudfoundry/bosh-agent-master/ci/softlayer_ng/tasks/test-unit.sh
