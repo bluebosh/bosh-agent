@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 
 	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
 
 	. "github.com/cloudfoundry/bosh-agent/matchers"
@@ -55,8 +56,8 @@ var _ = Describe("Settings", func() {
 			})
 
 			Context("when Env is provided", func() {
-				It("gets filesystem type from env", func() {
-					settingsJSON := `{"env": {"persistent_disk_fs": "xfs"}}`
+				It("gets persistent disk settings from env", func() {
+					settingsJSON := `{"env": {"persistent_disk_fs": "xfs", "persistent_disk_mount_options": ["opt1", "opt2"]}}`
 
 					err := json.Unmarshal([]byte(settingsJSON), &settings)
 					Expect(err).NotTo(HaveOccurred())
@@ -70,6 +71,7 @@ var _ = Describe("Settings", func() {
 						Lun:            "fake-disk-lun",
 						HostDeviceID:   "fake-disk-host-device-id",
 						FileSystemType: "xfs",
+						MountOptions:   []string{"opt1", "opt2"},
 					}))
 				})
 
@@ -648,7 +650,25 @@ var _ = Describe("Settings", func() {
     "authorized_keys": [
       "fake-key"
     ],
-    "swap_size": 2048
+    "swap_size": 2048,
+	"blobstores": [
+		{
+			"options": {
+				"bucket_name": "george",
+				"encryption_key": "optional encryption key",
+				"access_key_id": "optional access key id",
+				"secret_access_key": "optional secret access key",
+				"port": 443
+			},
+			"provider": "s3"
+		},
+		{
+			"options": {
+				"blobstore_path": "/var/vcap/micro_bosh/data/cache"
+			},
+			"provider": "local"
+		}
+	]
   }
 }`
 			err := json.Unmarshal([]byte(envJSON), &env)
@@ -659,6 +679,25 @@ var _ = Describe("Settings", func() {
 			Expect(env.Bosh.IPv6).To(Equal(IPv6{}))
 			Expect(env.GetAuthorizedKeys()).To(ConsistOf("fake-key"))
 			Expect(*env.GetSwapSizeInBytes()).To(Equal(uint64(2048 * 1024 * 1024)))
+			Expect(env.Bosh.Blobstores).To(Equal(
+				[](Blobstore){
+					Blobstore{
+						Type: "s3",
+						Options: map[string]interface{}{
+							"bucket_name":       "george",
+							"encryption_key":    "optional encryption key",
+							"access_key_id":     "optional access key id",
+							"secret_access_key": "optional secret access key",
+							"port":              443.0,
+						},
+					},
+					Blobstore{
+						Type: "local",
+						Options: map[string]interface{}{
+							"blobstore_path": "/var/vcap/micro_bosh/data/cache",
+						},
+					},
+				}))
 		})
 
 		It("permits you to specify bootstrap https certs", func() {
@@ -689,6 +728,8 @@ var _ = Describe("Settings", func() {
 			Expect(env.Bosh.Mbus.Cert.PrivateKey).To(Equal("fake-private-key-pem"))
 			Expect(env.Bosh.Mbus.Cert.Certificate).To(Equal("fake-certificate-pem"))
 			Expect(*env.GetSwapSizeInBytes()).To(Equal(uint64(2048 * 1024 * 1024)))
+			Expect(*env.GetSwapSizeInBytes()).To(Equal(uint64(2048 * 1024 * 1024)))
+			Expect(*env.GetSwapSizeInBytes()).To(Equal(uint64(2048 * 1024 * 1024)))
 		})
 
 		It("can enable ipv6", func() {
@@ -714,6 +755,113 @@ var _ = Describe("Settings", func() {
 				Expect(env.GetSwapSizeInBytes()).To(BeNil())
 			})
 		})
+
+		Context("#GetBlobstore", func() {
+			blobstoreLocal := Blobstore{
+				Type: "local",
+				Options: map[string]interface{}{
+					"blobstore_path": "/var/vcap/micro_bosh/data/cache",
+				},
+			}
+
+			blobstoreS3 := Blobstore{
+				Type: "s3",
+				Options: map[string]interface{}{
+					"bucket_name":       "george",
+					"encryption_key":    "optional encryption key",
+					"access_key_id":     "optional access key id",
+					"secret_access_key": "optional secret access key",
+					"port":              443.0,
+				},
+			}
+
+			blobstoreGcs := Blobstore{
+				Type: "gcs",
+				Options: map[string]interface{}{
+					"provider": "gcs",
+					"json_key": "|" +
+						"DIRECTOR-BLOBSTORE-SERVICE-ACCOUNT-FILE",
+					"bucket_name":    "test-bosh-bucket",
+					"encryption_key": "BASE64-ENCODED-32-BYTES",
+					"storage_class":  "REGIONAL",
+				},
+			}
+
+			DescribeTable("agent returning the right blobstore configuration",
+				func(settingsBlobstore Blobstore, envBoshBlobstores [](Blobstore), expectedBlobstore Blobstore) {
+					settings := Settings{
+						Blobstore: settingsBlobstore,
+						Env: Env{
+							Bosh: BoshEnv{
+								Blobstores: envBoshBlobstores,
+							},
+						},
+					}
+
+					Expect(settings.GetBlobstore()).To(Equal(expectedBlobstore))
+				},
+
+				Entry("setting.Blobstore provided and env.bosh.Blobstores is missing",
+					blobstoreLocal,
+					nil,
+					blobstoreLocal),
+
+				Entry("setting.Blobstore is missing and env.bosh.Blobstores is provided with a single entry",
+					nil,
+					[]Blobstore{blobstoreLocal},
+					blobstoreLocal),
+
+				Entry("setting.Blobstore is missing and env.bosh.Blobstores has multiple entries",
+					nil,
+					[]Blobstore{blobstoreS3, blobstoreGcs},
+					blobstoreS3),
+
+				Entry("setting.Blobstore and env.bosh.Blobstores both are missing",
+					nil,
+					nil,
+					nil),
+			)
+		})
+
+		Context("#IsNATSMutualTLSEnabled", func() {
+			Context("env JSON does NOT provide mbus", func() {
+				It("should return false", func() {
+					envJSON := `{ "bosh": {} }`
+
+					var env Env
+					err := json.Unmarshal([]byte(envJSON), &env)
+					Expect(err).NotTo(HaveOccurred())
+					Expect(env.IsNATSMutualTLSEnabled()).To(BeFalse())
+				})
+			})
+
+			DescribeTable("env JSON provides mbus",
+				func(cert string, expected bool) {
+					envJSON := `{ "bosh": { "mbus": { "cert": ` + cert + ` } } }`
+
+					var env Env
+					err := json.Unmarshal([]byte(envJSON), &env)
+					Expect(err).NotTo(HaveOccurred())
+					Expect(env.IsNATSMutualTLSEnabled()).To(Equal(expected))
+				},
+
+				Entry("empty cert",
+					`{}`,
+					false),
+
+				Entry("only certificate provided",
+					`{ "certificate": "some value" }`,
+					false),
+
+				Entry("only private_key provided",
+					`{ "private_key": "some value" }`,
+					false),
+
+				Entry("provides certificate, and private_key",
+					`{ "certificate": "some value", "private_key": "some value" }`,
+					true),
+			)
+		})
 	})
 
 	Describe("UpdateSettings", func() {
@@ -724,6 +872,59 @@ var _ = Describe("Settings", func() {
 		It("contains the correct keys", func() {
 			err := json.Unmarshal([]byte(updateSettingsJSON), &updateSettings)
 			Expect(err).NotTo(HaveOccurred())
+		})
+	})
+
+	Describe("#GetMbusURL", func() {
+		Context("Env.Bosh.Mbus.URLs is populated", func() {
+			It("should return Env.Bosh.Mbus.URLs", func() {
+				settings = Settings{
+					Env: Env{
+						Bosh: BoshEnv{
+							Mbus: MBus{
+								URLs: []string{"nats://nested:789"},
+							},
+						},
+					},
+					Mbus: "nats://top-level:123",
+				}
+
+				Expect(settings.GetMbusURL()).To(Equal("nats://nested:789"))
+			})
+		})
+
+		Context("Settings.Env.Bosh.Mbus.URLs is nil", func() {
+			It("should return Settings.Mbus", func() {
+				settings = Settings{
+					Mbus: "nats://top-level:456",
+					Env: Env{
+						Bosh: BoshEnv{
+							Mbus: MBus{
+								URLs: nil,
+							},
+						},
+					},
+				}
+
+				Expect(settings.GetMbusURL()).To(Equal("nats://top-level:456"))
+			})
+		})
+
+		Context("Settings.Env.Bosh.Mbus.URLs is zero length", func() {
+			It("should return Settings.Mbus", func() {
+				settings = Settings{
+					Mbus: "nats://top-level:456",
+					Env: Env{
+						Bosh: BoshEnv{
+							Mbus: MBus{
+								URLs: []string{},
+							},
+						},
+					},
+				}
+
+				Expect(settings.GetMbusURL()).To(Equal("nats://top-level:456"))
+			})
 		})
 	})
 })

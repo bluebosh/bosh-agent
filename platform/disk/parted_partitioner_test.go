@@ -7,11 +7,12 @@ import (
 	. "github.com/onsi/gomega"
 
 	"fmt"
+	"regexp"
+
 	fakeboshaction "github.com/cloudfoundry/bosh-agent/agent/action/fakes"
 	. "github.com/cloudfoundry/bosh-agent/platform/disk"
 	boshlog "github.com/cloudfoundry/bosh-utils/logger"
 	fakesys "github.com/cloudfoundry/bosh-utils/system/fakes"
-	"regexp"
 )
 
 const partitionNamePrefix = "bosh-partition"
@@ -99,13 +100,15 @@ var _ = Describe("PartedPartitioner", func() {
 					err := partitioner.Partition("/dev/sda", partitions)
 					Expect(err).ToNot(HaveOccurred())
 
-					Expect(len(fakeCmdRunner.RunCommands)).To(Equal(5))
+					Expect(len(fakeCmdRunner.RunCommands)).To(Equal(9))
 
 					scrubbedCommands := scrubPartitionNames(fakeCmdRunner.RunCommands)
 					Expect(scrubbedCommands).To(ContainElement([]string{"parted", "-m", "/dev/sda", "unit", "B", "print"}))
 					Expect(scrubbedCommands).To(ContainElement([]string{"parted", "-s", "/dev/sda", "mklabel", "gpt"}))
 					Expect(scrubbedCommands).To(ContainElement([]string{"parted", "-s", "/dev/sda", "unit", "B", "mkpart", "bosh-partition-x", "1048576", "8590983167"}))
 					Expect(scrubbedCommands).To(ContainElement([]string{"parted", "-s", "/dev/sda", "unit", "B", "mkpart", "bosh-partition-x", "8590983168", "17180917759"}))
+					Expect(scrubbedCommands).To(ContainElement([]string{"partprobe", "/dev/sda"}))
+					Expect(scrubbedCommands).To(ContainElement([]string{"udevadm", "settle"}))
 				})
 			})
 
@@ -144,12 +147,14 @@ var _ = Describe("PartedPartitioner", func() {
 					err := partitioner.Partition("/dev/sda", partitions)
 					Expect(err).ToNot(HaveOccurred())
 
-					Expect(len(fakeCmdRunner.RunCommands)).To(Equal(3))
+					Expect(len(fakeCmdRunner.RunCommands)).To(Equal(7))
 
 					scrubbedCommands := scrubPartitionNames(fakeCmdRunner.RunCommands)
 					Expect(scrubbedCommands).To(ContainElement([]string{"parted", "-m", "/dev/sda", "unit", "B", "print"}))
 					Expect(scrubbedCommands).To(ContainElement([]string{"parted", "-s", "/dev/sda", "unit", "B", "mkpart", "bosh-partition-x", "1048576", "8590983167"}))
 					Expect(scrubbedCommands).To(ContainElement([]string{"parted", "-s", "/dev/sda", "unit", "B", "mkpart", "bosh-partition-x", "8590983168", "17180917759"}))
+					Expect(scrubbedCommands).To(ContainElement([]string{"partprobe", "/dev/sda"}))
+					Expect(scrubbedCommands).To(ContainElement([]string{"udevadm", "settle"}))
 				})
 			})
 
@@ -191,12 +196,14 @@ var _ = Describe("PartedPartitioner", func() {
 						err := partitioner.Partition("/dev/sda", partitions)
 						Expect(err).ToNot(HaveOccurred())
 
-						Expect(len(fakeCmdRunner.RunCommands)).To(Equal(3))
+						Expect(len(fakeCmdRunner.RunCommands)).To(Equal(7))
 
 						scrubbedCommands := scrubPartitionNames(fakeCmdRunner.RunCommands)
 						Expect(scrubbedCommands).To(ContainElement([]string{"parted", "-m", "/dev/sda", "unit", "B", "print"}))
 						Expect(scrubbedCommands).To(ContainElement([]string{"parted", "-s", "/dev/sda", "unit", "B", "mkpart", "bosh-partition-x", "1048576", "8590983167"}))
 						Expect(scrubbedCommands).To(ContainElement([]string{"parted", "-s", "/dev/sda", "unit", "B", "mkpart", "bosh-partition-x", "8590983168", "17180917759"}))
+						Expect(scrubbedCommands).To(ContainElement([]string{"partprobe", "/dev/sda"}))
+						Expect(scrubbedCommands).To(ContainElement([]string{"udevadm", "settle"}))
 					})
 				})
 
@@ -273,11 +280,13 @@ var _ = Describe("PartedPartitioner", func() {
 					err := partitioner.Partition("/dev/sdf", partitions)
 					Expect(err).ToNot(HaveOccurred())
 
-					Expect(len(fakeCmdRunner.RunCommands)).To(Equal(2))
+					Expect(len(fakeCmdRunner.RunCommands)).To(Equal(4))
 
 					scrubbedCommands := scrubPartitionNames(fakeCmdRunner.RunCommands)
 					Expect(scrubbedCommands).To(ContainElement([]string{"parted", "-m", "/dev/sdf", "unit", "B", "print"}))
 					Expect(scrubbedCommands).To(ContainElement([]string{"parted", "-s", "/dev/sdf", "unit", "B", "mkpart", "bosh-partition-x", "1048576", "3146062495743"}))
+					Expect(scrubbedCommands).To(ContainElement([]string{"partprobe", "/dev/sdf"}))
+					Expect(scrubbedCommands).To(ContainElement([]string{"udevadm", "settle"}))
 				})
 			})
 
@@ -309,7 +318,7 @@ var _ = Describe("PartedPartitioner", func() {
 
 					err := partitioner.Partition("/dev/sdf", partitions)
 					Expect(err).ToNot(HaveOccurred())
-					Expect(len(fakeCmdRunner.RunCommands)).To(Equal(2))
+					Expect(len(fakeCmdRunner.RunCommands)).To(Equal(4))
 
 					scrubbedCommands := scrubPartitionNames(fakeCmdRunner.RunCommands)
 					Expect(scrubbedCommands).To(ContainElement([]string{"parted", "-m", "/dev/sdf", "unit", "B", "print"}))
@@ -354,12 +363,14 @@ var _ = Describe("PartedPartitioner", func() {
 					err := partitioner.Partition("/dev/sda", partitions)
 					Expect(err).ToNot(HaveOccurred())
 
-					Expect(len(fakeCmdRunner.RunCommands)).To(Equal(3))
+					Expect(len(fakeCmdRunner.RunCommands)).To(Equal(7))
 
 					scrubbedCommands := scrubPartitionNames(fakeCmdRunner.RunCommands)
 					Expect(scrubbedCommands).To(ContainElement([]string{"parted", "-m", "/dev/sda", "unit", "B", "print"}))
 					Expect(scrubbedCommands).To(ContainElement([]string{"parted", "-s", "/dev/sda", "unit", "B", "mkpart", "bosh-partition-x", "1048576", "8590983167"}))
 					Expect(scrubbedCommands).To(ContainElement([]string{"parted", "-s", "/dev/sda", "unit", "B", "mkpart", "bosh-partition-x", "8590983168", "221189767167"}))
+					Expect(scrubbedCommands).To(ContainElement([]string{"partprobe", "/dev/sda"}))
+					Expect(scrubbedCommands).To(ContainElement([]string{"udevadm", "settle"}))
 				})
 			})
 		})
@@ -398,7 +409,7 @@ var _ = Describe("PartedPartitioner", func() {
 						fakesys.FakeCmdResult{
 							Stdout: `BYT;
 /dev/xvdf:221190815744B:xvd:512:512:gpt:Xen Virtual Block Device;
-1:512B:8589935104B:8568963072B:ext4::;
+1:512B:8589935104B:8558963072B:ext4::;
 2:8589935105B:17179869697B:8568963072B:ext4::;
 `},
 					)

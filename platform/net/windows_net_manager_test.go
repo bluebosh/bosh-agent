@@ -14,7 +14,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	"github.com/pivotal-golang/clock/fakeclock"
+	"code.cloudfoundry.org/clock/fakeclock"
 
 	boshsettings "github.com/cloudfoundry/bosh-agent/settings"
 	boshdirs "github.com/cloudfoundry/bosh-agent/settings/directories"
@@ -54,23 +54,11 @@ var _ = Describe("WindowsNetManager", func() {
 		fs                            boshsys.FileSystem
 		dirProvider                   boshdirs.Provider
 		tmpDir                        string
+		macAddressDetector            *fakeMACAddressDetector
 	)
-	macAddressDetector := new(fakeMACAddressDetector)
-
-	setupMACs := func(networks ...boshsettings.Network) error {
-		m := make(map[string]string)
-		for i, net := range networks {
-			if net.Mac != "" {
-				m[net.Mac] = fmt.Sprintf("Eth_HW %d", i)
-			} else {
-				m[randomMAC()] = fmt.Sprintf("Eth_Rand %d", i)
-			}
-		}
-		macAddressDetector.macs = m
-		return nil
-	}
 
 	BeforeEach(func() {
+		macAddressDetector = new(fakeMACAddressDetector)
 		runner = fakesys.NewFakeCmdRunner()
 		clock = fakeclock.NewFakeClock(time.Now())
 		logger := boshlog.NewLogger(boshlog.LevelNone)
@@ -131,7 +119,7 @@ var _ = Describe("WindowsNetManager", func() {
 		}
 
 		It("sets the IP address and netmask on all interfaces, and the gateway on the default gateway interface", func() {
-			setupMACs(network1, network2)
+			setUpMACs(macAddressDetector, network1, network2)
 			err := setupNetworking(boshsettings.Networks{"net1": network1, "net2": network2, "vip": vip})
 			Expect(err).ToNot(HaveOccurred())
 
@@ -148,7 +136,7 @@ var _ = Describe("WindowsNetManager", func() {
 		})
 
 		It("returns an error when configuring fails", func() {
-			setupMACs(network1)
+			setUpMACs(macAddressDetector, network1)
 			runner.AddCmdResult(
 				"-Command "+fmt.Sprintf(NicSettingsTemplate, network1.Mac, network1.IP, network1.Netmask, network1.Gateway),
 				fakesys.FakeCmdResult{Error: errors.New("fake-err")},
@@ -156,7 +144,51 @@ var _ = Describe("WindowsNetManager", func() {
 
 			err := setupNetworking(boshsettings.Networks{"static-1": network1})
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(Equal("Configuring interface: fake-err"))
+			Expect(err.Error()).To(ContainSubstring("Configuring interface: fake-err"))
+
+			lockFile := filepath.Join(dirProvider.BoshDir(), "configured_interfaces.txt")
+			Expect(lockFile).ToNot(BeAnExistingFile())
+		})
+	})
+
+	Describe("lock file", func() {
+		var network boshsettings.Network
+
+		BeforeEach(func() {
+			network = boshsettings.Network{
+				Type:    "manual",
+				DNS:     []string{"8.8.8.8"},
+				Default: []string{"gateway", "dns"},
+			}
+
+			setUpMACs(macAddressDetector, network)
+		})
+
+		Context("when the lock file exists", func() {
+			BeforeEach(func() {
+				lockFile := filepath.Join(dirProvider.BoshDir(), "dns")
+
+				_, err := fs.OpenFile(lockFile, os.O_CREATE, 0644)
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			It("does not configure DNS", func() {
+				err := setupNetworking(boshsettings.Networks{"net1": network})
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(runner.RunCommands).NotTo(ContainElement(
+					[]string{"-Command", fmt.Sprintf(SetDNSTemplate, strings.Join(network.DNS, `","`))}))
+			})
+		})
+
+		Context("when the lock file does not exist", func() {
+			It("configures DNS", func() {
+				err := setupNetworking(boshsettings.Networks{"net1": network})
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(runner.RunCommands).To(ContainElement(
+					[]string{"-Command", fmt.Sprintf(SetDNSTemplate, strings.Join(network.DNS, `","`))}))
+			})
 		})
 	})
 
@@ -167,6 +199,8 @@ var _ = Describe("WindowsNetManager", func() {
 				DNS:     []string{"8.8.8.8"},
 				Default: []string{"gateway", "dns"},
 			}
+
+			setUpMACs(macAddressDetector, network)
 
 			err := setupNetworking(boshsettings.Networks{"net1": network})
 			Expect(err).ToNot(HaveOccurred())
@@ -181,6 +215,9 @@ var _ = Describe("WindowsNetManager", func() {
 				DNS:     []string{"127.0.0.1", "8.8.8.8"},
 				Default: []string{"gateway", "dns"},
 			}
+
+			setUpMACs(macAddressDetector, network)
+
 			err := setupNetworking(boshsettings.Networks{"manual-1": network})
 			Expect(err).ToNot(HaveOccurred())
 
@@ -193,6 +230,8 @@ var _ = Describe("WindowsNetManager", func() {
 				Type:    "manual",
 				Default: []string{"gateway", "dns"},
 			}
+
+			setUpMACs(macAddressDetector, network)
 
 			err := setupNetworking(boshsettings.Networks{"static-1": network})
 			Expect(err).ToNot(HaveOccurred())
@@ -208,6 +247,8 @@ var _ = Describe("WindowsNetManager", func() {
 				Default: []string{"gateway", "dns"},
 			}
 
+			setUpMACs(macAddressDetector, network)
+
 			runner.AddCmdResult(
 				"-Command "+fmt.Sprintf(SetDNSTemplate, strings.Join(network.DNS, `","`)),
 				fakesys.FakeCmdResult{Error: errors.New("fake-err")},
@@ -219,6 +260,8 @@ var _ = Describe("WindowsNetManager", func() {
 
 		It("returns error if resetting DNS servers fails", func() {
 			network := boshsettings.Network{Type: "manual"}
+
+			setUpMACs(macAddressDetector, network)
 
 			runner.AddCmdResult(
 				"-Command "+ResetDNSTemplate,
@@ -238,11 +281,14 @@ var _ = Describe("WindowsNetManager", func() {
 				DNS:     []string{"127.0.0.1", "8.8.8.8"},
 				Default: []string{"gateway"},
 			}
+
+			setUpMACs(macAddressDetector, network)
+
 			err := setupNetworking(boshsettings.Networks{"static-1": network})
 			Expect(err).ToNot(HaveOccurred())
 
 			Expect(runner.RunCommands).To(Equal(
-				[][]string{[]string{"-Command", fmt.Sprintf(SetDNSTemplate, strings.Join(network.DNS, `","`))}}))
+				[][]string{{"-Command", fmt.Sprintf(SetDNSTemplate, strings.Join(network.DNS, `","`))}}))
 		})
 
 		It("resets DNS without any DNS servers if there are multiple networks", func() {
@@ -258,12 +304,13 @@ var _ = Describe("WindowsNetManager", func() {
 				Default: []string{"gateway"},
 			}
 
-			setupMACs(network1, network2)
+			setUpMACs(macAddressDetector, network1, network2)
+
 			err := setupNetworking(boshsettings.Networks{"man-1": network1, "man-2": network2})
 			Expect(err).ToNot(HaveOccurred())
 
 			Expect(runner.RunCommands).To(Equal(
-				[][]string{[]string{"-Command", ResetDNSTemplate}}))
+				[][]string{{"-Command", ResetDNSTemplate}}))
 		})
 	})
 
@@ -280,10 +327,12 @@ var _ = Describe("WindowsNetManager", func() {
 				Default: []string{"gateway", "dns"},
 			}
 
+			setUpMACs(macAddressDetector, network1, network2)
+
 			err := setupNetworking(boshsettings.Networks{"static-1": network1, "vip-1": network2})
 			Expect(err).ToNot(HaveOccurred())
 
-			Expect(runner.RunCommands).To(Equal([][]string{[]string{"-Command", ResetDNSTemplate}}))
+			Expect(runner.RunCommands).To(Equal([][]string{{"-Command", ResetDNSTemplate}}))
 		})
 	})
 
@@ -292,7 +341,20 @@ var _ = Describe("WindowsNetManager", func() {
 			err := setupNetworking(boshsettings.Networks{})
 			Expect(err).ToNot(HaveOccurred())
 
-			Expect(runner.RunCommands).To(Equal([][]string{[]string{"-Command", ResetDNSTemplate}}))
+			Expect(runner.RunCommands).To(Equal([][]string{{"-Command", ResetDNSTemplate}}))
 		})
 	})
 })
+
+func setUpMACs(macAddressDetector *fakeMACAddressDetector, networks ...boshsettings.Network) error {
+	m := make(map[string]string)
+	for i, net := range networks {
+		if net.Mac != "" {
+			m[net.Mac] = fmt.Sprintf("Eth_HW %d", i)
+		} else {
+			m[randomMAC()] = fmt.Sprintf("Eth_Rand %d", i)
+		}
+	}
+	macAddressDetector.macs = m
+	return nil
+}

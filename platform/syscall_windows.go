@@ -12,7 +12,10 @@ import (
 	"syscall"
 	"unsafe"
 
+	"github.com/cloudfoundry/bosh-agent/jobsupervisor/winsvc"
+
 	"golang.org/x/sys/windows"
+	"golang.org/x/sys/windows/registry"
 	"golang.org/x/sys/windows/svc"
 	"golang.org/x/sys/windows/svc/mgr"
 )
@@ -184,6 +187,9 @@ func validPassword(s string) bool {
 }
 
 // generatePassword, returns a 14 char ascii85 encoded password.
+//
+// DO NOT CALL THIS DIRECTLY, use randomPassword instead as it
+// returns a valid Windows password.
 func generatePassword() (string, error) {
 	const Length = 14
 
@@ -380,7 +386,6 @@ func checkSSH() error {
 	m, err := mgr.Connect()
 	if err != nil {
 		return fmt.Errorf("opening service control manager: %s", err)
-		return err
 	}
 	defer m.Disconnect()
 
@@ -426,5 +431,135 @@ func checkSSH() error {
 		return errors.New("ssh-agent service is not running")
 	}
 
+	return nil
+}
+
+func disableWindowsUpdates() error {
+	const path2016 = `SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU`
+	const path2012 = `SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update`
+
+	// Stop and Disable Windows Update Service
+
+	m, err := mgr.Connect()
+	if err != nil {
+		return fmt.Errorf("opening service control manager: %s", err)
+	}
+	defer m.Disconnect()
+
+	s, err := m.OpenService("wuauserv")
+	if err != nil {
+		return fmt.Errorf("opening Windows Update service: %s", err)
+	}
+	defer s.Close()
+
+	if err := winsvc.SetStartType(s, mgr.StartDisabled); err != nil {
+		return fmt.Errorf("disabling Windows Update service: %s", err)
+	}
+	if err := winsvc.Stop(s); err != nil {
+		return fmt.Errorf("stopping Windows Update service: %s", err)
+	}
+
+	// Turn off updates via registry keys
+
+	values := map[string]uint32{
+		"AUOptions": 1,
+	}
+
+	// Note: always try the 2016 path first as it does not exist on 2012R2,
+	// but the 2012R2 path exists on 2016.
+	//
+	key, err := registry.OpenKey(registry.LOCAL_MACHINE, path2016, registry.ALL_ACCESS)
+	switch err {
+	case nil:
+		// 2016 specific values
+		values["NoAutoUpdate"] = 1
+
+	case registry.ErrNotExist:
+		// Try 2012R2 key path
+		key, err = registry.OpenKey(registry.LOCAL_MACHINE, path2012, registry.ALL_ACCESS)
+		if err != nil {
+			return fmt.Errorf("opening registry key (%s): %s", path2012, err)
+		}
+
+		// 2012R2 specific values
+		values["EnableFeatureSoftware"] = 0
+		values["IncludeRecommendedUpdates"] = 0
+
+	default:
+		return fmt.Errorf("opening registry key (%s): %s", path2016, err)
+	}
+	defer key.Close()
+
+	for k, v := range values {
+		if err := key.SetDWordValue(k, v); err != nil {
+			return fmt.Errorf("setting registry key (%s): %s", k, err)
+		}
+	}
+
+	return nil
+}
+
+func closeWinRMPort(port int) error {
+	deleteWinRMFirewallRule(port)
+
+	err := setWinrmFirewall("Block", port)
+	if err != nil {
+		return fmt.Errorf("could not set winrm firewall: %s", err)
+	}
+
+	return nil
+}
+
+func closeWinRMPorts() error {
+	if err := closeWinRMPort(5985); err != nil {
+		return err
+	}
+	return closeWinRMPort(5986)
+}
+
+func setWinrmFirewall(action string, port int) error {
+	cmd := exec.Command("NETSH.exe", "advfirewall", "firewall", "add", "rule", fmt.Sprintf("name=Port%d", port), "dir=in", fmt.Sprintf("action=%v", action), fmt.Sprintf("localport=%d", port), "protocol=TCP")
+	_, err := cmd.CombinedOutput()
+
+	return err
+}
+
+func deleteWinRMFirewallRule(port int) error {
+	cmd := exec.Command("NETSH.exe", "advfirewall", "firewall", "delete", "rule", fmt.Sprintf("localport=%d", port), "dir=in", "protocol=TCP", "name=all")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("(%s): %s", err, string(out))
+	}
+	return nil
+}
+
+func setupRuntimeConfiguration() error {
+	if err := disableWindowsUpdates(); err != nil {
+		return fmt.Errorf("disabling updates: %s", err)
+	}
+	if err := closeWinRMPorts(); err != nil {
+		return fmt.Errorf("closing WinRM port(5985,5986): %s", err)
+	}
+	return nil
+}
+
+func setRandomPassword(username string) error {
+	if !userExists(username) {
+		// Special case, if the Admin account does not exist
+		// or is disabled there is no need to randomize it.
+		if username == administratorUserName {
+			return nil
+		}
+		return fmt.Errorf("user does not exist: %s", username)
+	}
+	passwd, err := randomPassword()
+	if err != nil {
+		return err
+	}
+	cmd := exec.Command("NET.exe", "USER", username, passwd)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("error setting password for user (%s): %s", err, string(out))
+	}
 	return nil
 }

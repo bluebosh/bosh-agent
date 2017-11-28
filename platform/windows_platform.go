@@ -25,6 +25,10 @@ import (
 	boshuuid "github.com/cloudfoundry/bosh-utils/uuid"
 )
 
+// Administrator user name, this currently exists for testing, but may be useful
+// if we ever change the Admin user name for security reasons.
+var administratorUserName = "Administrator"
+
 type WindowsPlatform struct {
 	collector              boshstats.Collector
 	fs                     boshsys.FileSystem
@@ -107,8 +111,8 @@ func (p WindowsPlatform) GetAuditLogger() AuditLogger {
 	return p.auditLogger
 }
 
-func (p WindowsPlatform) SetupRuntimeConfiguration() (err error) {
-	return
+func (p WindowsPlatform) SetupRuntimeConfiguration() error {
+	return setupRuntimeConfiguration()
 }
 
 func (p WindowsPlatform) CreateUser(username, _ string) error {
@@ -198,6 +202,22 @@ func (p WindowsPlatform) SetupSSH(publicKey []string, username string) error {
 }
 
 func (p WindowsPlatform) SetUserPassword(user, encryptedPwd string) (err error) {
+	if user == boshsettings.VCAPUsername || user == boshsettings.RootUsername {
+		//
+		// Only randomize the password once.  Otherwise the password will be
+		// changed every time the agent restarts - breaking jobs/addons that
+		// set the Administrator password.
+		//
+		if boshnet.LockFileExistsForRandomizedPasswords(p.fs, p.dirProvider) {
+			return nil
+		}
+		if err := setRandomPassword(administratorUserName); err != nil {
+			return bosherr.WrapError(err, "Randomized Administrator password")
+		}
+		if err := boshnet.WriteLockFileForRandomizedPasswords(p.fs, p.dirProvider); err != nil {
+			return bosherr.WrapError(err, "Could not set user password")
+		}
+	}
 	return
 }
 

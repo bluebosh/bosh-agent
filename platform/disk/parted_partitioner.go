@@ -6,14 +6,17 @@ import (
 	"strconv"
 	"strings"
 
+	"code.cloudfoundry.org/clock"
 	bosherr "github.com/cloudfoundry/bosh-utils/errors"
 	boshlog "github.com/cloudfoundry/bosh-utils/logger"
 	boshretry "github.com/cloudfoundry/bosh-utils/retrystrategy"
 	boshsys "github.com/cloudfoundry/bosh-utils/system"
-	"github.com/pivotal-golang/clock"
 )
 
-const partitionNamePrefix = "bosh-partition"
+const (
+	partitionNamePrefix = "bosh-partition"
+	deltaSize           = 100
+)
 
 type partedPartitioner struct {
 	logger      boshlog.Logger
@@ -87,7 +90,7 @@ func (p partedPartitioner) partitionsMatch(existingPartitions []existingPartitio
 		existingPartition := existingPartitions[index]
 		if existingPartition.Type != partition.Type {
 			return false
-		} else if !withinDelta(partition.SizeInBytes, existingPartition.SizeInBytes, p.convertFromMbToBytes(100)) {
+		} else if !withinDelta(partition.SizeInBytes, existingPartition.SizeInBytes, p.convertFromMbToBytes(deltaSize)) {
 			return false
 		}
 
@@ -275,6 +278,15 @@ func (p partedPartitioner) createEachPartition(partitions []Partition, deviceFul
 				//TODO: double check the output here. Does it make sense?
 				return true, bosherr.WrapError(err, "Creating partition using parted")
 			}
+
+			_, _, _, err = p.cmdRunner.RunCommand("partprobe", devicePath)
+			if err != nil {
+				p.logger.Error(p.logTag, "Failed to probe for newly created parition: %s", err)
+				return true, bosherr.WrapError(err, "Creating partition using parted")
+			}
+
+			p.cmdRunner.RunCommand("udevadm", "settle")
+
 			p.logger.Info(p.logTag, "Successfully created partition %d on %s", index, devicePath)
 			return false, nil
 		})

@@ -5,6 +5,7 @@ import (
 
 	"github.com/cloudfoundry/yagnats"
 
+	"code.cloudfoundry.org/clock"
 	boshhandler "github.com/cloudfoundry/bosh-agent/handler"
 	boshplatform "github.com/cloudfoundry/bosh-agent/platform"
 	boshsettings "github.com/cloudfoundry/bosh-agent/settings"
@@ -40,7 +41,7 @@ func (p HandlerProvider) Get(
 		return
 	}
 
-	mbusURL, err := url.Parse(p.settingsService.GetSettings().Mbus)
+	mbusURL, err := url.Parse(p.settingsService.GetSettings().GetMbusURL())
 	if err != nil {
 		err = bosherr.WrapError(err, "Parsing handler URL")
 		return
@@ -48,7 +49,8 @@ func (p HandlerProvider) Get(
 
 	switch mbusURL.Scheme {
 	case "nats":
-		handler = NewNatsHandler(p.settingsService, yagnats.NewClient(), p.logger, platform)
+		natsClient := NewTimeoutNatsClient(yagnats.NewClient(), clock.NewClock())
+		handler = NewNatsHandler(p.settingsService, natsClient, p.logger, platform)
 	case "https":
 		mbusKeyPair := p.settingsService.GetSettings().Env.Bosh.Mbus.Cert
 		handler = NewHTTPSHandler(mbusURL, mbusKeyPair, p.logger, platform.GetFs(), dirProvider, p.auditLogger)

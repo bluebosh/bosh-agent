@@ -1,6 +1,9 @@
 package net
 
 import (
+	"net"
+	"strconv"
+
 	boshsettings "github.com/cloudfoundry/bosh-agent/settings"
 	bosherr "github.com/cloudfoundry/bosh-utils/errors"
 	boshlog "github.com/cloudfoundry/bosh-utils/logger"
@@ -19,6 +22,25 @@ type StaticInterfaceConfiguration struct {
 	PostUpRoutes        boshsettings.Routes
 }
 
+func (c StaticInterfaceConfiguration) Version6() string {
+	if c.IsVersion6() {
+		return "6"
+	}
+	return ""
+}
+
+func (c StaticInterfaceConfiguration) IsVersion6() bool {
+	return len(c.Network) == 0 && len(c.Broadcast) == 0
+}
+
+func (c StaticInterfaceConfiguration) NetmaskOrLen() string {
+	if c.IsVersion6() {
+		ones, _ := net.IPMask(net.ParseIP(c.Netmask)).Size()
+		return strconv.Itoa(ones)
+	}
+	return c.Netmask
+}
+
 type StaticInterfaceConfigurations []StaticInterfaceConfiguration
 
 func (configs StaticInterfaceConfigurations) Len() int {
@@ -33,9 +55,34 @@ func (configs StaticInterfaceConfigurations) Swap(i, j int) {
 	configs[i], configs[j] = configs[j], configs[i]
 }
 
+func (configs StaticInterfaceConfigurations) HasVersion6() bool {
+	for _, config := range configs {
+		if config.IsVersion6() {
+			return true
+		}
+	}
+	return false
+}
+
 type DHCPInterfaceConfiguration struct {
 	Name         string
 	PostUpRoutes boshsettings.Routes
+	Address      string
+}
+
+func (c DHCPInterfaceConfiguration) Version6() string {
+	if c.IsVersion6() {
+		return "6"
+	}
+	return ""
+}
+
+func (c DHCPInterfaceConfiguration) IsVersion6() bool {
+	ip := net.ParseIP(c.Address)
+	if ip == nil || ip.To4() != nil {
+		return false
+	}
+	return true
 }
 
 type DHCPInterfaceConfigurations []DHCPInterfaceConfiguration
@@ -50,6 +97,15 @@ func (configs DHCPInterfaceConfigurations) Less(i, j int) bool {
 
 func (configs DHCPInterfaceConfigurations) Swap(i, j int) {
 	configs[i], configs[j] = configs[j], configs[i]
+}
+
+func (configs DHCPInterfaceConfigurations) HasVersion6() bool {
+	for _, config := range configs {
+		if len(config.Version6()) > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 type InterfaceConfigurationCreator interface {
@@ -76,6 +132,7 @@ func (creator interfaceConfigurationCreator) createInterfaceConfiguration(static
 		dhcpConfigs = append(dhcpConfigs, DHCPInterfaceConfiguration{
 			Name:         ifaceName,
 			PostUpRoutes: networkSettings.Routes,
+			Address:      networkSettings.IP,
 		})
 	} else {
 		creator.logger.Debug(creator.logTag, "Using static networking")
@@ -84,7 +141,7 @@ func (creator interfaceConfigurationCreator) createInterfaceConfiguration(static
 			return nil, nil, bosherr.WrapError(err, "Calculating Network and Broadcast")
 		}
 
-		staticConfigs = append(staticConfigs, StaticInterfaceConfiguration{
+		conf := StaticInterfaceConfiguration{
 			Name:                ifaceName,
 			Address:             networkSettings.IP,
 			Netmask:             networkSettings.Netmask,
@@ -94,7 +151,8 @@ func (creator interfaceConfigurationCreator) createInterfaceConfiguration(static
 			Mac:                 networkSettings.Mac,
 			Gateway:             networkSettings.Gateway,
 			PostUpRoutes:        networkSettings.Routes,
-		})
+		}
+		staticConfigs = append(staticConfigs, conf)
 	}
 	return staticConfigs, dhcpConfigs, nil
 }

@@ -29,3 +29,11 @@ func isServiceRunning(_ string) error {
 func sshEnabled() error {
 	return ErrNotImplemented
 }
+
+func setupRuntimeConfiguration() error {
+	return ErrNotImplemented
+}
+
+func setRandomPassword(username string) error {
+	return ErrNotImplemented
+}

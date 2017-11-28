@@ -6,9 +6,7 @@ import (
 	"github.com/cloudfoundry/bosh-agent/platform/disk"
 )
 
-type DiskAssociations struct {
-	Associations []DiskAssociation `json:"disk_associations"`
-}
+type DiskAssociations []DiskAssociation
 
 type DiskAssociation struct {
 	Name    string `json:"name"`
@@ -36,8 +34,8 @@ type Settings struct {
 }
 
 type UpdateSettings struct {
-	DiskAssociations []DiskAssociation `json:"disk_associations"`
-	TrustedCerts     string            `json:"trusted_certs"`
+	DiskAssociations DiskAssociations `json:"disk_associations"`
+	TrustedCerts     string           `json:"trusted_certs"`
 }
 
 type Source interface {
@@ -88,6 +86,7 @@ type DiskSettings struct {
 	Password      string
 
 	FileSystemType disk.FileSystemType
+	MountOptions   []string
 }
 
 type VM struct {
@@ -138,6 +137,7 @@ func (s Settings) PersistentDiskSettings(diskID string) (DiskSettings, bool) {
 			}
 
 			diskSettings.FileSystemType = s.Env.PersistentDiskFS
+			diskSettings.MountOptions = s.Env.PersistentDiskMountOptions
 			return diskSettings, true
 		}
 	}
@@ -179,9 +179,25 @@ func (s Settings) RawEphemeralDiskSettings() (devices []DiskSettings) {
 	return s.Disks.RawEphemeral
 }
 
+func (s Settings) GetMbusURL() string {
+	if len(s.Env.Bosh.Mbus.URLs) > 0 {
+		return s.Env.Bosh.Mbus.URLs[0]
+	}
+
+	return s.Mbus
+}
+
+func (s Settings) GetBlobstore() Blobstore {
+	if len(s.Env.Bosh.Blobstores) > 0 {
+		return s.Env.Bosh.Blobstores[0]
+	}
+	return s.Blobstore
+}
+
 type Env struct {
-	Bosh             BoshEnv             `json:"bosh"`
-	PersistentDiskFS disk.FileSystemType `json:"persistent_disk_fs"`
+	Bosh                       BoshEnv             `json:"bosh"`
+	PersistentDiskFS           disk.FileSystemType `json:"persistent_disk_fs"`
+	PersistentDiskMountOptions []string            `json:"persistent_disk_mount_options"`
 }
 
 func (e Env) GetPassword() string {
@@ -213,21 +229,29 @@ func (e Env) GetSwapSizeInBytes() *uint64 {
 	return &result
 }
 
-type BoshEnv struct {
-	Password              string   `json:"password"`
-	KeepRootPassword      bool     `json:"keep_root_password"`
-	RemoveDevTools        bool     `json:"remove_dev_tools"`
-	RemoveStaticLibraries bool     `json:"remove_static_libraries"`
-	AuthorizedKeys        []string `json:"authorized_keys"`
-	SwapSizeInMB          *uint64  `json:"swap_size"`
-	Mbus                  struct {
-		Cert CertKeyPair `json:"cert"`
-	} `json:"mbus"`
+func (e Env) IsNATSMutualTLSEnabled() bool {
+	return len(e.Bosh.Mbus.Cert.Certificate) > 0 && len(e.Bosh.Mbus.Cert.PrivateKey) > 0
+}
 
-	IPv6 IPv6 `json:"ipv6"`
+type BoshEnv struct {
+	Password              string      `json:"password"`
+	KeepRootPassword      bool        `json:"keep_root_password"`
+	RemoveDevTools        bool        `json:"remove_dev_tools"`
+	RemoveStaticLibraries bool        `json:"remove_static_libraries"`
+	AuthorizedKeys        []string    `json:"authorized_keys"`
+	SwapSizeInMB          *uint64     `json:"swap_size"`
+	Mbus                  MBus        `json:"mbus"`
+	IPv6                  IPv6        `json:"ipv6"`
+	Blobstores            []Blobstore `json:"blobstores"`
+}
+
+type MBus struct {
+	Cert CertKeyPair `json:"cert"`
+	URLs []string    `json:"urls"`
 }
 
 type CertKeyPair struct {
+	CA          string `json:"ca"`
 	PrivateKey  string `json:"private_key"`
 	Certificate string `json:"certificate"`
 }
@@ -425,6 +449,10 @@ func (n Network) IsVIP() bool {
 //	"env": {
 //		"bosh": {
 //			"password": null
+//			"mbus": {
+//				"url": "nats://localhost:ddd",
+//				"ca": "....."
+//			}
 //      },
 //      "persistent_disk_fs": "xfs"
 //	},
