@@ -72,12 +72,19 @@ type Disks struct {
 }
 
 type DiskSettings struct {
-	ID             string
-	DeviceID       string
-	VolumeID       string
-	Lun            string
-	HostDeviceID   string
-	Path           string
+	ID           string
+	DeviceID     string
+	VolumeID     string
+	Lun          string
+	HostDeviceID string
+	Path         string
+
+	// iscsi related
+	InitiatorName string
+	Username      string
+	Target        string
+	Password      string
+
 	FileSystemType disk.FileSystemType
 	MountOptions   []string
 }
@@ -109,6 +116,20 @@ func (s Settings) PersistentDiskSettings(diskID string) (DiskSettings, bool) {
 				if hostDeviceID, ok := hashSettings["host_device_id"]; ok {
 					diskSettings.HostDeviceID = hostDeviceID.(string)
 				}
+
+				if username, ok := hashSettings["username"]; ok {
+					diskSettings.Username = username.(string)
+				}
+				if password, ok := hashSettings["password"]; ok {
+					diskSettings.Password = password.(string)
+				}
+				if initiator, ok := hashSettings["initiator_name"]; ok {
+					diskSettings.InitiatorName = initiator.(string)
+				}
+				if target, ok := hashSettings["target"]; ok {
+					diskSettings.Target = target.(string)
+				}
+
 			} else {
 				// Old CPIs return disk path (string) or volume id (string) as disk settings
 				diskSettings.Path = settings.(string)
@@ -251,6 +272,14 @@ const (
 	NetworkTypeVIP     NetworkType = "vip"
 )
 
+type Route struct {
+	Destination string
+	Gateway     string
+	NetMask     string
+}
+
+type Routes []Route
+
 type Network struct {
 	Type NetworkType `json:"type"`
 
@@ -266,6 +295,9 @@ type Network struct {
 	Mac string `json:"mac"`
 
 	Preconfigured bool `json:"preconfigured"`
+
+	Alias  string `json:"alias,omitempty"`
+	Routes Routes `json:"routes,omitempty"`
 }
 
 type Networks map[string]Network
@@ -334,6 +366,21 @@ func (n Networks) IPs() (ips []string) {
 	return
 }
 
+func (n Networks) HasInterfaceAlias() bool {
+	for _, network := range n {
+		if network.IsVIP() {
+			// Skip VIP networks since we do not configure interfaces for them
+			continue
+		}
+
+		if network.Alias != "" {
+			return true
+		}
+	}
+
+	return false
+}
+
 func (n Networks) IsPreconfigured() bool {
 	for _, network := range n {
 		if network.IsVIP() {
@@ -351,8 +398,8 @@ func (n Networks) IsPreconfigured() bool {
 
 func (n Network) String() string {
 	return fmt.Sprintf(
-		"type: '%s', ip: '%s', netmask: '%s', gateway: '%s', mac: '%s', resolved: '%t', preconfigured: '%t', use_dhcp: '%t'",
-		n.Type, n.IP, n.Netmask, n.Gateway, n.Mac, n.Resolved, n.Preconfigured, n.UseDHCP,
+		"type: '%s', ip: '%s', netmask: '%s', gateway: '%s', mac: '%s', resolved: '%t', preconfigured: '%t', use_dhcp: '%t', alias: '%s'",
+		n.Type, n.IP, n.Netmask, n.Gateway, n.Mac, n.Resolved, n.Preconfigured, n.UseDHCP, n.Alias,
 	)
 }
 
