@@ -385,12 +385,11 @@ auto {{ .Name }}
 iface {{ .Name }} inet{{ .Version6 }} static
     address {{ .Address }}{{ if not .IsVersion6 }}
     network {{ .Network }}{{ end }}
-    netmask {{ .NetmaskOrLen }}
-{{ if .IsDefaultForGateway }}{{ if not .IsVersion6 }}
+    netmask {{ .NetmaskOrLen }}{{ if .IsDefaultForGateway }}{{ if not .IsVersion6 }}
     broadcast {{ .Broadcast }}{{ end }}
     gateway {{ .Gateway }}{{ end }}{{ range .PostUpRoutes }}
-    post-up route add -net {{ .Destination }} netmask {{ .NetMask }} gw {{ .Gateway }}{{ end }}{{ end }}
-{{ if .HasVersion6 }}
+    post-up route add -net {{ .Destination }} netmask {{ .NetMask }} gw {{ .Gateway }}{{ end }}
+{{ end }}{{ if .HasVersion6 }}
 accept_ra 1{{ end }}{{ if .DNSServers }}
 dns-nameservers{{ range .DNSServers }} {{ . }}{{ end }}{{ end }}`
 
