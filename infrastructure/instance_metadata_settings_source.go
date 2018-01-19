@@ -1,8 +1,10 @@
 package infrastructure
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	boshplatform "github.com/cloudfoundry/bosh-agent/platform"
@@ -82,8 +84,16 @@ func (s *InstanceMetadataSettingsSource) Settings() (boshsettings.Settings, erro
 
 	err = json.Unmarshal([]byte(contents), &settings)
 	if err != nil {
-		return settings, bosherr.WrapErrorf(
-			err, "Parsing instance metadata settings from %q", contents)
+		settingsBytesWithoutQuotes := strings.Replace(string(contents), `"`, ``, -1)
+		decodedSettings, err := base64.RawURLEncoding.DecodeString(settingsBytesWithoutQuotes)
+		if err != nil {
+			return settings, bosherr.WrapError(err, "Decoding url encoded user data")
+		}
+
+		err = json.Unmarshal([]byte(decodedSettings), &settings)
+		if err != nil {
+			return settings, bosherr.WrapErrorf(err, "Parsing instance metadata settings from %q", decodedSettings)
+		}
 	}
 
 	return settings, nil
