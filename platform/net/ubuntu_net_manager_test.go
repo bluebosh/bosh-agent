@@ -548,8 +548,8 @@ iface eth0 inet static
     address 1.2.3.4
     network 1.2.3.0
     netmask 255.255.255.0
-
     post-up route add -net 10.0.0.0 netmask 255.0.0.0 gw 3.4.5.6
+
 auto eth1
 iface eth1 inet static
     address 5.6.7.8
@@ -608,12 +608,12 @@ iface eth0 inet static
     netmask 255.255.255.0
     broadcast 1.2.3.255
     gateway 3.4.5.6
+
 auto eth0:1
 iface eth0:1 inet static
     address 5.6.7.8
     network 5.6.7.0
     netmask 255.255.255.0
-
 
 dns-nameservers 8.8.8.8`))
 
@@ -1156,9 +1156,9 @@ iface eth0 inet static
     address 10.112.39.113
     network 10.112.39.0
     netmask 255.255.255.128
-
     post-up route add -net 10.0.0.0 netmask 255.0.0.0 gw 10.112.39.1
     post-up route add -net 161.26.0.0 netmask 255.255.0.0 gw 10.112.39.1
+
 auto eth0:0
 iface eth0:0 inet static
     address 10.112.166.136
