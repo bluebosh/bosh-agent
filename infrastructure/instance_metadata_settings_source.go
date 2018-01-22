@@ -82,20 +82,22 @@ func (s *InstanceMetadataSettingsSource) Settings() (boshsettings.Settings, erro
 		return settings, bosherr.WrapError(err, fmt.Sprintf("Reading settings from instance metadata at path %q", s.settingsPath))
 	}
 
-	err = json.Unmarshal([]byte(contents), &settings)
-	if err != nil {
-		if strings.Contains(contents, "") {
-
-		}
+	if strings.Contains(s.settingsPath, "SoftLayer_Resource_Metadata") {
 		settingsBytesWithoutQuotes := strings.Replace(string(contents), `"`, ``, -1)
 		decodedSettings, err := base64.RawURLEncoding.DecodeString(settingsBytesWithoutQuotes)
 		if err != nil {
-			return settings, bosherr.WrapError(err, "Decoding url encoded settings data")
+			return settings, bosherr.WrapError(err, "Decoding url encoded instance metadata settings")
 		}
 
 		err = json.Unmarshal([]byte(decodedSettings), &settings)
 		if err != nil {
-			return settings, bosherr.WrapErrorf(err, "Parsing instance metadata settings after decode from %q", decodedSettings)
+			return settings, bosherr.WrapErrorf(err, "Parsing instance metadata settings after decoding from %q", decodedSettings)
+		}
+	} else {
+		err = json.Unmarshal([]byte(contents), &settings)
+		if err != nil {
+			return settings, bosherr.WrapErrorf(
+				err, "Parsing instance metadata settings from %q", contents)
 		}
 	}
 
