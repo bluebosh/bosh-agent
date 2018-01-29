@@ -40,7 +40,7 @@ func NewHTTPMetadataService(
 	logger boshlog.Logger,
 ) DynamicMetadataService {
 	return HTTPMetadataService{
-		client:          createRetryClient(1*time.Second, logger),
+		client:          createRetryClient(10*time.Second, logger),
 		metadataHost:    metadataHost,
 		metadataHeaders: metadataHeaders,
 		userdataPath:    userdataPath,
