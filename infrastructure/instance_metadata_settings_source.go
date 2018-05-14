@@ -15,6 +15,7 @@ type InstanceMetadataSettingsSource struct {
 	metadataHost    string
 	metadataHeaders map[string]string
 	settingsPath    string
+	HttpRegistryAccessCachePath bool
 
 	platform boshplatform.Platform
 	logger   boshlog.Logger
@@ -27,6 +28,8 @@ func NewInstanceMetadataSettingsSource(
 	metadataHost string,
 	metadataHeaders map[string]string,
 	settingsPath string,
+	HttpRegistryAccessCachePath bool,
+	httpRegistryAccessCachePath string,
 	platform boshplatform.Platform,
 	logger boshlog.Logger,
 ) *InstanceMetadataSettingsSource {
@@ -35,6 +38,7 @@ func NewInstanceMetadataSettingsSource(
 		metadataHost:    metadataHost,
 		metadataHeaders: metadataHeaders,
 		settingsPath:    settingsPath,
+		HttpRegistryAccessCachePath: HttpRegistryAccessCachePath,
 
 		platform: platform,
 		logger:   logger,
@@ -42,7 +46,7 @@ func NewInstanceMetadataSettingsSource(
 		logTag: logTag,
 		// The HTTPMetadataService provides more functionality than we need (like custom DNS), so we
 		// pass zero values to the New function and only use its GetValueAtPath method.
-		metadataService: NewHTTPMetadataService(metadataHost, metadataHeaders, "", "", "", nil, platform, logger),
+		metadataService: NewHTTPMetadataService(metadataHost, metadataHeaders, "", "", "", HttpRegistryAccessCachePath, httpRegistryAccessCachePath,nil,nil, platform, logger),
 	}
 }
 
@@ -50,6 +54,7 @@ func NewInstanceMetadataSettingsSourceWithoutRetryDelay(
 	metadataHost string,
 	metadataHeaders map[string]string,
 	settingsPath string,
+	HttpRegistryAccessCachePath bool,
 	platform boshplatform.Platform,
 	logger boshlog.Logger,
 ) *InstanceMetadataSettingsSource {
@@ -65,7 +70,7 @@ func NewInstanceMetadataSettingsSourceWithoutRetryDelay(
 		logTag: logTag,
 		// The HTTPMetadataService provides more functionality than we need (like custom DNS), so we
 		// pass zero values to the New function and only use its GetValueAtPath method.
-		metadataService: NewHTTPMetadataServiceWithCustomRetryDelay(metadataHost, metadataHeaders, "", "", "", nil, platform, logger, 0*time.Second),
+		metadataService: NewHTTPMetadataServiceWithCustomRetryDelay(metadataHost, metadataHeaders, "", "", "", HttpRegistryAccessCachePath,nil, platform, logger, 0*time.Second),
 	}
 }
 

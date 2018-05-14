@@ -88,7 +88,12 @@ func (app *app) Setup(opts Options) error {
 		return bosherr.WrapError(err, "Getting platform")
 	}
 
-	settingsSourceFactory := boshinf.NewSettingsSourceFactory(config.Infrastructure.Settings, app.platform, app.logger)
+	settingsSourceFactory := boshinf.NewSettingsSourceFactory(
+		app.platform.GetFs(),
+		filepath.Join(app.dirProvider.BoshDir(), "httpRegistryAccessCache"),
+		config.Infrastructure.Settings,
+		app.platform,
+		app.logger)
 	settingsSource, err := settingsSourceFactory.New()
 	if err != nil {
 		return bosherr.WrapError(err, "Getting Settings Source")

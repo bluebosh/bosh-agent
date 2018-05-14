@@ -9,6 +9,7 @@ import (
 	boshsettings "github.com/cloudfoundry/bosh-agent/settings"
 	bosherr "github.com/cloudfoundry/bosh-utils/errors"
 	boshlog "github.com/cloudfoundry/bosh-utils/logger"
+	boshsys "github.com/cloudfoundry/bosh-utils/system"
 )
 
 type Options struct {
@@ -29,11 +30,12 @@ type SourceOptions interface {
 }
 
 type HTTPSourceOptions struct {
-	URI            string
-	Headers        map[string]string
-	UserDataPath   string
-	InstanceIDPath string
-	SSHKeysPath    string
+	URI                        string
+	Headers                    map[string]string
+	UserDataPath               string
+	InstanceIDPath             string
+	SSHKeysPath                string
+	HttpRegistryCachePreferred bool
 }
 
 func (o HTTPSourceOptions) sourceOptionsInterface() {}
@@ -68,22 +70,30 @@ type InstanceMetadataSourceOptions struct {
 	URI          string
 	Headers      map[string]string
 	SettingsPath string
+	HttpRegistryAccessCachePath bool
+
 }
 
 func (o InstanceMetadataSourceOptions) sourceOptionsInterface() {}
 
 type SettingsSourceFactory struct {
+	fs boshsys.FileSystem
+	httpRegistryAccessCachePath string
 	options  SettingsOptions
 	platform boshplat.Platform
 	logger   boshlog.Logger
 }
 
 func NewSettingsSourceFactory(
+	fs boshsys.FileSystem,
+	httpRegistryAccessCachePath string,
 	options SettingsOptions,
 	platform boshplat.Platform,
 	logger boshlog.Logger,
 ) SettingsSourceFactory {
 	return SettingsSourceFactory{
+		fs: fs,
+		httpRegistryAccessCachePath: httpRegistryAccessCachePath,
 		options:  options,
 		platform: platform,
 		logger:   logger,
@@ -115,7 +125,10 @@ func (f SettingsSourceFactory) buildWithRegistry() (boshsettings.Source, error) 
 				typedOpts.UserDataPath,
 				typedOpts.InstanceIDPath,
 				typedOpts.SSHKeysPath,
+				typedOpts.HttpRegistryCachePreferred,
+				f.httpRegistryAccessCachePath,
 				resolver,
+				f.fs,
 				f.platform,
 				f.logger,
 			)
@@ -193,6 +206,8 @@ func (f SettingsSourceFactory) buildWithoutRegistry() (boshsettings.Source, erro
 				typedOpts.URI,
 				typedOpts.Headers,
 				typedOpts.SettingsPath,
+				typedOpts.HttpRegistryAccessCachePath,
+				f.httpRegistryAccessCachePath,
 				f.platform,
 				f.logger,
 			)
