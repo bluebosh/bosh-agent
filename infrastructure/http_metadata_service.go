@@ -53,6 +53,30 @@ func NewHTTPMetadataService(
 	}
 }
 
+func NewHTTPMetadataServiceInstance(
+	metadataHost string,
+	metadataHeaders map[string]string,
+	userdataPath string,
+	instanceIDPath string,
+	sshKeysPath string,
+	resolver DNSResolver,
+	platform boshplat.Platform,
+	logger boshlog.Logger,
+) HTTPMetadataService {
+	return HTTPMetadataService{
+		client:          createRetryClient(1*time.Second, logger),
+		metadataHost:    metadataHost,
+		metadataHeaders: metadataHeaders,
+		userdataPath:    userdataPath,
+		instanceIDPath:  instanceIDPath,
+		sshKeysPath:     sshKeysPath,
+		resolver:        resolver,
+		platform:        platform,
+		logTag:          "httpMetadataService",
+		logger:          logger,
+	}
+}
+
 func NewHTTPMetadataServiceWithCustomRetryDelay(
 	metadataHost string,
 	metadataHeaders map[string]string,
