@@ -7,12 +7,14 @@ import (
 	. "github.com/cloudfoundry/bosh-agent/infrastructure"
 	fakeplat "github.com/cloudfoundry/bosh-agent/platform/fakes"
 	boshlog "github.com/cloudfoundry/bosh-utils/logger"
+	fakeboshsys "github.com/cloudfoundry/bosh-utils/system/fakes"
 	"reflect"
 )
 
 var _ = Describe("SettingsSourceFactory", func() {
 	Describe("New", func() {
 		var (
+			fs       *fakeboshsys.FakeFileSystem
 			options  SettingsOptions
 			platform *fakeplat.FakePlatform
 			logger   boshlog.Logger
@@ -20,13 +22,14 @@ var _ = Describe("SettingsSourceFactory", func() {
 		)
 
 		BeforeEach(func() {
+			fs = fakeboshsys.NewFakeFileSystem()
 			options = SettingsOptions{}
 			platform = fakeplat.NewFakePlatform()
 			logger = boshlog.NewLogger(boshlog.LevelNone)
 		})
 
 		JustBeforeEach(func() {
-			factory = NewSettingsSourceFactory(options, platform, logger)
+			factory = NewSettingsSourceFactory(fs, "/fake-user-data-cache-path", options, platform, logger)
 		})
 
 		Context("when UseRegistry is set to true", func() {
@@ -50,6 +53,24 @@ var _ = Describe("SettingsSourceFactory", func() {
 						httpMetadataService := metadataService.(*MultiSourceMetadataService).Services[0]
 
 						Expect(reflect.TypeOf(httpMetadataService).Name()).To(Equal(reflect.TypeOf(HTTPMetadataService{}).Name()))
+					})
+				})
+
+				Context("when using HTTP source with registry cache preferred", func() {
+					BeforeEach(func() {
+						options.Sources = []SourceOptions{
+							HTTPSourceOptions{URI: "http://fake-url", HttpRegistryCachePreferred: true},
+						}
+					})
+
+					It("returns a settings source that uses HTTP to fetch settings", func() {
+						settingsSource, err := factory.New()
+						Expect(err).ToNot(HaveOccurred())
+
+						metadataService := settingsSource.(ComplexSettingsSource).GetMetadataService()
+						httpMetadataService := metadataService.(*MultiSourceMetadataService).Services[0]
+
+						Expect(reflect.TypeOf(httpMetadataService).Name()).To(Equal(reflect.TypeOf(CachingMetadataService{}).Name()))
 					})
 				})
 
