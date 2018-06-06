@@ -116,6 +116,35 @@ var _ = Describe("PartedPartitioner", func() {
 				})
 			})
 
+			Context("when there is an empty non-gpt partition table", func() {
+				BeforeEach(func() {
+					fakeCmdRunner.AddCmdResult(
+						"parted -m /dev/sda unit B print",
+						fakesys.FakeCmdResult{
+							Stdout: `BYT;
+/dev/xvdf:221190815744B:xvd:512:512:msdos:Xen Virtual Block Device;
+`})
+					fakeCmdRunner.AddCmdResult(
+						"parted -m /dev/sda unit B print",
+						fakesys.FakeCmdResult{
+							Stdout: `BYT;
+/dev/xvdf:221190815744B:xvd:512:512:gpt:Xen Virtual Block Device;
+`})
+				})
+
+				It("makes a gpt label and then creates partitions using parted", func() {
+					partitions := []Partition{
+						{SizeInBytes: 8589934592}, // (8GiB)
+						{SizeInBytes: 8589934592}, // (8GiB)
+					}
+
+					err := partitioner.Partition("/dev/sda", partitions)
+					Expect(err).ToNot(HaveOccurred())
+
+					Expect(fakeCmdRunner.RunCommands).To(ContainElement([]string{"parted", "-s", "/dev/sda", "mklabel", "gpt"}))
+				})
+			})
+
 			Context("when there are no partitions", func() {
 				BeforeEach(func() {
 					fakeCmdRunner.AddCmdResult(
@@ -154,6 +183,7 @@ var _ = Describe("PartedPartitioner", func() {
 					Expect(len(fakeCmdRunner.RunCommands)).To(Equal(7))
 
 					scrubbedCommands := scrubPartitionNames(fakeCmdRunner.RunCommands)
+					Expect(scrubbedCommands).ToNot(ContainElement([]string{"parted", "-s", "/dev/sda", "mklabel", "gpt"}))
 					Expect(scrubbedCommands).To(ContainElement([]string{"parted", "-m", "/dev/sda", "unit", "B", "print"}))
 					Expect(scrubbedCommands).To(ContainElement([]string{"parted", "-s", "/dev/sda", "unit", "B", "mkpart", "bosh-partition-x", "1048576", "8590983167"}))
 					Expect(scrubbedCommands).To(ContainElement([]string{"parted", "-s", "/dev/sda", "unit", "B", "mkpart", "bosh-partition-x", "8590983168", "17180917759"}))
