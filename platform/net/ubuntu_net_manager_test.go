@@ -239,7 +239,7 @@ iface ethstatic inet static
 dns-nameservers 8.8.8.8 9.9.9.9`
 		})
 
-		Context("networks is preconfigured", func() {
+		XContext("networks is preconfigured", func() {
 			var networks boshsettings.Networks
 			BeforeEach(func() {
 				dhcpNetwork.Preconfigured = true

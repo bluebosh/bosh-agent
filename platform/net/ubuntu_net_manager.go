@@ -99,11 +99,6 @@ func (net UbuntuNetManager) SetupIPv6(config boshsettings.IPv6, stopCh <-chan st
 func (net UbuntuNetManager) SetupNetworking(networks boshsettings.Networks, errCh chan error) error {
 	if networks.IsPreconfigured() {
 		// Note in this case IPs are not broadcast
-		return net.writeResolvConf(networks)
-	}
-
-	// TODO PR: Specific for bluemix networking
-	if networks.HasInterfaceAlias() {
 		net.writeResolvConf(networks)
 	}
 
