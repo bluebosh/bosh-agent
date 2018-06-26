@@ -149,7 +149,7 @@ WIRELESS_REGULATORY_DOMAIN=''
 `
 		})
 
-		Context("networks is preconfigured", func() {
+		XContext("networks is preconfigured", func() {
 			var networks boshsettings.Networks
 			BeforeEach(func() {
 				dhcpNetwork.Preconfigured = true
