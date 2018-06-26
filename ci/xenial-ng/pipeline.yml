@@ -1,0 +1,97 @@
+---
+groups:
+- name: bosh-agent
+  jobs:
+  - test-unit
+  - promote
+
+jobs:
+- name: test-unit
+  public: true
+  plan:
+    - get: bosh-agent
+      trigger: true
+    - task: test-unit
+      file: bosh-agent/ci/tasks/test-unit.yml
+
+- name: promote
+  public: true
+  serial: true
+  plan:
+    - aggregate:
+      - trigger: true
+        passed: [test-unit]
+        get: bosh-agent
+      - trigger: true
+        get: bosh-agent-master
+      - get: version-semver
+        params: {pre: ng}
+    - put: version-semver
+      params:
+        file: version-semver/number
+    - put: bosh-agent-commit-status
+      params:
+        state: success
+        commit: bosh-agent
+    - put: bosh-agent
+      params:
+        repository: bosh-agent
+        tag: version-semver/number
+        tag_prefix: v
+    - aggregate:
+      - task: build-linux
+        file: bosh-agent/ci/tasks/build-linux.yml
+    - aggregate:
+      - put: release-bucket-linux
+        params:
+          file: compiled-linux-amd64/bosh-agent-*-linux-amd64
+
+resources:
+- name: bosh-agent
+  type: git
+  source:
+    uri: git@github.com:bluebosh/bosh-agent.git
+    branch: 2.117.0-ng
+    private_key: {{BOSH_GITHUB_DEPLOYMENT_KEY}}
+
+- name: bosh-agent-master
+  type: git
+  source:
+    uri: git@github.com:bluebosh/bosh-agent.git
+    branch: master
+    private_key: {{BOSH_GITHUB_DEPLOYMENT_KEY}}
+
+- name: bosh-agent-commit-status
+  type: github-status
+  source:
+    repository: bluebosh/bosh-agent.git
+    access_token: {{repo_github_token}}
+    branch: 2.117.0-ng
+    context: ci/published
+
+- name: release-bucket-linux
+  type: s3
+  source:
+    bucket: releases
+    regexp: bosh-agent-(.*)-linux-amd64
+    bucket: {{RELEASE_BUCKET_AGENT}}
+    region_name: {{AWS_S3_BUCKET_REGION}}
+    access_key_id: {{AWS_S3_BUCKET_ACCESS_KEY}}
+    secret_access_key: {{AWS_S3_BUCKET_SECRET_KEY}}
+
+- name: version-semver
+  type: semver
+  source:
+    initial_version: 2.117.0
+    key: agent-current-version
+    bucket: {{SEMVER_BUCKET}}
+    region_name: {{AWS_S3_BUCKET_REGION}}
+    access_key_id: {{AWS_S3_BUCKET_ACCESS_KEY}}
+    secret_access_key: {{AWS_S3_BUCKET_SECRET_KEY}}
+
+resource_types:
+- name: github-status
+  type: docker-image
+  source:
+    repository: dpb587/github-status-resource
+    tag: master
