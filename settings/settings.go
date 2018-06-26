@@ -80,7 +80,7 @@ type DiskSettings struct {
 	Path         string
 
 	// iscsi related
-	ISCSISettings ISCSISettings `json:"iscsi_settings"`
+	ISCSISettings ISCSISettings
 
 	FileSystemType disk.FileSystemType
 	MountOptions   []string
@@ -92,6 +92,7 @@ type ISCSISettings struct {
 	Target        string
 	Password      string
 }
+
 type VM struct {
 	Name string `json:"name"`
 }
@@ -282,7 +283,7 @@ const (
 type Route struct {
 	Destination string
 	Gateway     string
-	NetMask     string
+	Netmask     string
 }
 
 type Routes []Route
@@ -301,10 +302,10 @@ type Network struct {
 
 	Mac string `json:"mac"`
 
-	Preconfigured bool `json:"preconfigured"`
+	Preconfigured bool   `json:"preconfigured"`
+	Routes        Routes `json:"routes,omitempty"`
 
-	Alias  string `json:"alias,omitempty"`
-	Routes Routes `json:"routes,omitempty"`
+	Alias string `json:"alias,omitempty"`
 }
 
 type Networks map[string]Network
@@ -405,8 +406,8 @@ func (n Networks) IsPreconfigured() bool {
 
 func (n Network) String() string {
 	return fmt.Sprintf(
-		"type: '%s', ip: '%s', netmask: '%s', gateway: '%s', mac: '%s', resolved: '%t', preconfigured: '%t', use_dhcp: '%t', alias: '%s'",
-		n.Type, n.IP, n.Netmask, n.Gateway, n.Mac, n.Resolved, n.Preconfigured, n.UseDHCP, n.Alias,
+		"type: '%s', ip: '%s', netmask: '%s', gateway: '%s', mac: '%s', resolved: '%t', preconfigured: '%t', use_dhcp: '%t'",
+		n.Type, n.IP, n.Netmask, n.Gateway, n.Mac, n.Resolved, n.Preconfigured, n.UseDHCP,
 	)
 }
 

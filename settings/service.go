@@ -122,6 +122,7 @@ func (s *settingsService) GetSettings() Settings {
 	}
 	s.settingsMutex.Unlock()
 
+	// TODO check
 	if settingsCopy.Networks.HasInterfaceAlias() {
 		return settingsCopy
 	}

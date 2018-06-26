@@ -3,7 +3,7 @@ package net
 type Route struct {
 	Destination   string
 	Gateway       string
-	NetMask       string
+	Netmask       string
 	InterfaceName string
 }
 
