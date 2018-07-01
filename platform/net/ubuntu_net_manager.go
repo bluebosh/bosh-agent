@@ -97,9 +97,18 @@ func (net UbuntuNetManager) SetupIPv6(config boshsettings.IPv6, stopCh <-chan st
 }
 
 func (net UbuntuNetManager) SetupNetworking(networks boshsettings.Networks, errCh chan error) error {
-	if networks.HasInterfaceAlias() {
-		net.writeResolvConf(networks)
+	net.logger.Debug(UbuntuNetManagerLogTag, "Starting preconfig networks.")
+	if networks.IsPreconfigured() {
+		err := net.writeResolvConf(networks)
+		if err != nil {
+			return bosherr.WrapError(err, "Writing resolvconf")
+		}
 	}
+	net.logger.Debug(UbuntuNetManagerLogTag, "Finished preconfig networks.")
+
+	//if networks.HasInterfaceAlias() {
+	//	net.writeResolvConf(networks)
+	//}
 
 	staticConfigs, dhcpConfigs, dnsServers, err := net.ComputeNetworkConfig(networks)
 	if err != nil {
