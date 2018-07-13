@@ -123,7 +123,7 @@ func NewProvider(logger boshlog.Logger, dirProvider boshdirs.Provider, statsColl
 	case "iscsi":
 		identityPathResolver := devicepathresolver.NewIdentityDevicePathResolver()
 		iscsiAdm := boshiscsi.NewConcreteOpenIscsiAdmin(fs, runner, logger)
-		iscsiPathResolver := devicepathresolver.NewIscsiDevicePathResolver(50000*time.Millisecond, runner, iscsiAdm, fs, dirProvider, logger)
+		iscsiPathResolver := devicepathresolver.NewIscsiDevicePathResolver(600000*time.Millisecond, runner, iscsiAdm, fs, dirProvider, logger)
 		devicePathResolver = devicepathresolver.NewMultipathDevicePathResolver(identityPathResolver, iscsiPathResolver, logger)
 
 	default:
