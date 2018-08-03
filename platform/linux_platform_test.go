@@ -760,9 +760,11 @@ fake-base-path/data/sys/log/*.log fake-base-path/data/sys/log/.*.log fake-base-p
 			It("creates new partition even if the data directory is not empty", func() {
 				fs.SetGlob(path.Join("/fake-dir", "data", "*"), []string{"something"})
 
+				Expect(state.Linux.EphemeralDiskPartitioned).To(BeFalse())
 				err := act()
 				Expect(err).ToNot(HaveOccurred())
 				Expect(partitioner.PartitionCalled).To(BeTrue())
+				Expect(state.Linux.EphemeralDiskPartitioned).To(BeTrue())
 				Expect(formatter.FormatCalled).To(BeTrue())
 				Expect(mounter.MountCallCount()).To(Equal(1))
 			})
@@ -1525,6 +1527,21 @@ fake-base-path/data/sys/log/*.log fake-base-path/data/sys/log/.*.log fake-base-p
 						})
 					})
 				})
+			})
+		})
+
+		Context("when EphemeralDiskPartitioned is true", func() {
+			BeforeEach(func() {
+				state.Linux.EphemeralDiskPartitioned = true
+			})
+
+			It("makes sure ephemeral directory is there but does nothing else", func() {
+				swapSize := uint64(0)
+				err := platform.SetupEphemeralDiskWithPath("/dev/xvda", &swapSize)
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(partitioner.PartitionCalled).To(BeFalse())
+				Expect(state.Linux.EphemeralDiskPartitioned).To(BeTrue())
 			})
 		})
 	})

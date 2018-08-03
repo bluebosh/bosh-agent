@@ -4,11 +4,11 @@ import (
 	"reflect"
 
 	. "github.com/cloudfoundry/bosh-agent/infrastructure"
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
 	"github.com/cloudfoundry/bosh-agent/platform/platformfakes"
 	boshlog "github.com/cloudfoundry/bosh-utils/logger"
 	fakeboshsys "github.com/cloudfoundry/bosh-utils/system/fakes"
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 )
 
 var _ = Describe("SettingsSourceFactory", func() {
