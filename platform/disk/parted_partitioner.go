@@ -377,6 +377,11 @@ func (p partedPartitioner) removeEachPartition(partitions []existingPartition, d
 		if err != nil {
 			return bosherr.WrapErrorf(err, "Removing partitions of disk `%s'", devicePath)
 		}
+
+		_, _, _, err = p.cmdRunner.RunCommand("blkid", "-g")
+		if err != nil {
+			return bosherr.WrapErrorf(err, "Removing old partitions format information")
+		}
 	}
 	return nil
 }
