@@ -50,7 +50,7 @@ var _ = Describe("PartedPartitioner", func() {
 		logger = boshlog.NewLogger(boshlog.LevelNone)
 		fakeCmdRunner = fakesys.NewFakeCmdRunner()
 		fakeclock = &fakeboshaction.FakeClock{}
-		partitioner = NewPartedPartitioner(logger, fakeCmdRunner, fakeclock)
+		partitioner = NewPartedPartitioner(logger, fakeCmdRunner, fakeclock, "")
 	})
 
 	Describe("Partition", func() {
@@ -96,7 +96,6 @@ var _ = Describe("PartedPartitioner", func() {
 					// 17180917760 % 1048576 = 0
 					// 17180917760 - 0 - 1 = 17180917759
 					// second start=11661213696, end=17180917759, size=8589934592
-
 					err := partitioner.Partition("/dev/sda", partitions)
 					Expect(err).ToNot(HaveOccurred())
 
@@ -156,6 +155,7 @@ var _ = Describe("PartedPartitioner", func() {
 					Expect(scrubbedCommands).To(ContainElement([]string{"partprobe", "/dev/sda"}))
 					Expect(scrubbedCommands).To(ContainElement([]string{"udevadm", "settle"}))
 				})
+
 			})
 
 			Context("when there are existing partitions", func() {

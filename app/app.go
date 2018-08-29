@@ -81,7 +81,7 @@ func (app *app) Setup(opts Options) error {
 	}
 
 	timeService := clock.NewClock()
-	platformProvider := boshplatform.NewProvider(app.logger, app.dirProvider, statsCollector, app.fs, config.Platform, state, timeService, auditLogger)
+	platformProvider := boshplatform.NewProvider(app.logger, app.dirProvider, statsCollector, app.fs, config.Platform, state, timeService, auditLogger, filepath.Join(app.dirProvider.BoshDir(), "settings.json"))
 
 	app.platform, err = platformProvider.Get(opts.PlatformName)
 	if err != nil {

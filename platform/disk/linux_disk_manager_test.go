@@ -13,15 +13,24 @@ import (
 
 var _ = Describe("NewLinuxDiskManager", func() {
 	var (
-		runner *fakesys.FakeCmdRunner
-		fs     *fakesys.FakeFileSystem
-		logger boshlog.Logger
+		settingsPath        string
+		partitionNamePrefix string
+		runner              *fakesys.FakeCmdRunner
+		fs                  *fakesys.FakeFileSystem
+		logger              boshlog.Logger
+		mounter             disk.Mounter
+		diskManager         disk.Manager
 	)
 
 	BeforeEach(func() {
+		settingsPath = "fake-agent-id"
+		partitionNamePrefix = "fake-partition-name-prefix"
 		runner = fakesys.NewFakeCmdRunner()
 		fs = fakesys.NewFakeFileSystem()
 		logger = boshlog.NewLogger(boshlog.LevelNone)
+		diskManager = disk.NewLinuxDiskManager(logger, runner, fs, disk.LinuxDiskManagerOpts{}, settingsPath)
+		mountsSearcher := disk.NewProcMountsSearcher(fs)
+		mounter = disk.NewLinuxMounter(runner, mountsSearcher, 1*time.Second)
 	})
 
 	Context("when bindMount is set to false", func() {
@@ -29,7 +38,7 @@ var _ = Describe("NewLinuxDiskManager", func() {
 			expectedMountsSearcher := disk.NewProcMountsSearcher(fs)
 			expectedMounter := disk.NewLinuxMounter(runner, expectedMountsSearcher, 1*time.Second)
 
-			diskManager := disk.NewLinuxDiskManager(logger, runner, fs, disk.LinuxDiskManagerOpts{})
+			diskManager := disk.NewLinuxDiskManager(logger, runner, fs, disk.LinuxDiskManagerOpts{}, settingsPath)
 			Expect(diskManager.GetMounter()).To(Equal(expectedMounter))
 		})
 	})
@@ -40,7 +49,7 @@ var _ = Describe("NewLinuxDiskManager", func() {
 			expectedMounter := disk.NewLinuxBindMounter(disk.NewLinuxMounter(runner, expectedMountsSearcher, 1*time.Second))
 
 			opts := disk.LinuxDiskManagerOpts{BindMount: true}
-			diskManager := disk.NewLinuxDiskManager(logger, runner, fs, opts)
+			diskManager := disk.NewLinuxDiskManager(logger, runner, fs, opts, settingsPath)
 			Expect(diskManager.GetMounter()).To(Equal(expectedMounter))
 		})
 	})
@@ -48,44 +57,33 @@ var _ = Describe("NewLinuxDiskManager", func() {
 	Context("when partitioner type is not set", func() {
 		It("returns disk manager configured to use sfdisk", func() {
 			opts := disk.LinuxDiskManagerOpts{}
-			diskManager := disk.NewLinuxDiskManager(logger, runner, fs, opts)
-			Expect(diskManager.GetEphemeralDevicePartitioner()).To(Equal(disk.NewSfdiskPartitioner(logger, runner, clock.NewClock())))
+			diskManager := disk.NewLinuxDiskManager(logger, runner, fs, opts, settingsPath)
+			Expect(diskManager.GetEphemeralDevicePartitioner()).To(Equal(disk.NewEphemeralDevicePartitioner(disk.NewPartedPartitioner(logger, runner, clock.NewClock(), "bosh-partition"), disk.NewUtil(runner, mounter, fs, logger), logger, runner, fs, clock.NewClock(), settingsPath)))
 		})
 	})
 
 	Context("when partitioner type is 'parted'", func() {
 		It("returns disk manager configured to use parted", func() {
 			opts := disk.LinuxDiskManagerOpts{PartitionerType: "parted"}
-			diskManager := disk.NewLinuxDiskManager(logger, runner, fs, opts)
-			Expect(diskManager.GetEphemeralDevicePartitioner()).To(Equal(disk.NewPartedPartitioner(logger, runner, clock.NewClock())))
+			diskManager := disk.NewLinuxDiskManager(logger, runner, fs, opts, settingsPath)
+			Expect(diskManager.GetEphemeralDevicePartitioner()).To(Equal(disk.NewEphemeralDevicePartitioner(disk.NewPartedPartitioner(logger, runner, clock.NewClock(), "bosh-partition"), disk.NewUtil(runner, mounter, fs, logger), logger, runner, fs, clock.NewClock(), settingsPath)))
 		})
 	})
 
 	Context("when partitioner type is unknown", func() {
 		It("panics", func() {
 			opts := disk.LinuxDiskManagerOpts{PartitionerType: "unknown"}
-			Expect(func() { disk.NewLinuxDiskManager(logger, runner, fs, opts) }).To(Panic())
+			Expect(func() { disk.NewLinuxDiskManager(logger, runner, fs, opts, settingsPath) }).To(Panic())
 		})
 	})
 
 	Context("GetPersistentDevicePartitioner", func() {
-		var (
-			mounter     disk.Mounter
-			diskManager disk.Manager
-		)
-
-		BeforeEach(func() {
-			diskManager = disk.NewLinuxDiskManager(logger, runner, fs, disk.LinuxDiskManagerOpts{})
-			mountsSearcher := disk.NewProcMountsSearcher(fs)
-			mounter = disk.NewLinuxMounter(runner, mountsSearcher, 1*time.Second)
-		})
-
 		It("returns the default persistent disk partitioner", func() {
 			partitioner, err := diskManager.GetPersistentDevicePartitioner("")
 			Expect(err).NotTo(HaveOccurred())
 			Expect(partitioner).To(Equal(disk.NewPersistentDevicePartitioner(
 				disk.NewSfdiskPartitioner(logger, runner, clock.NewClock()),
-				disk.NewPartedPartitioner(logger, runner, clock.NewClock()),
+				disk.NewPartedPartitioner(logger, runner, clock.NewClock(), "bosh-partition"),
 				disk.NewUtil(runner, mounter, fs, logger),
 				logger,
 			)))
@@ -95,7 +93,7 @@ var _ = Describe("NewLinuxDiskManager", func() {
 			It("returns the parted partitioner", func() {
 				partitioner, err := diskManager.GetPersistentDevicePartitioner("parted")
 				Expect(err).NotTo(HaveOccurred())
-				Expect(partitioner).To(Equal(disk.NewPartedPartitioner(logger, runner, clock.NewClock())))
+				Expect(partitioner).To(Equal(disk.NewPartedPartitioner(logger, runner, clock.NewClock(), "bosh-partition")))
 			})
 		})
 

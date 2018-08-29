@@ -36,6 +36,7 @@ func NewLinuxDiskManager(
 	runner boshsys.CmdRunner,
 	fs boshsys.FileSystem,
 	opts LinuxDiskManagerOpts,
+	settingsPath string,
 ) Manager {
 	var mounter Mounter
 	var mountsSearcher MountsSearcher
@@ -61,15 +62,15 @@ func NewLinuxDiskManager(
 	var ephemeralPartitioner, persistentPartitioner Partitioner
 
 	diskUtil := NewUtil(runner, mounter, fs, logger)
-	partedPartitioner := NewPartedPartitioner(logger, runner, clock.NewClock())
+	partedPartitioner := NewPartedPartitioner(logger, runner, clock.NewClock(), "bosh-partition")
 	sfDiskPartitioner := NewSfdiskPartitioner(logger, runner, clock.NewClock())
+
+	ephemeralPartitioner = NewEphemeralDevicePartitioner(partedPartitioner, diskUtil, logger, runner, fs, clock.NewClock(), settingsPath)
 
 	switch opts.PartitionerType {
 	case "parted":
-		ephemeralPartitioner = partedPartitioner
 		persistentPartitioner = partedPartitioner
 	case "":
-		ephemeralPartitioner = sfDiskPartitioner
 		persistentPartitioner = NewPersistentDevicePartitioner(sfDiskPartitioner, partedPartitioner, diskUtil, logger)
 	default:
 		panic(fmt.Sprintf("Unknown partitioner type '%s'", opts.PartitionerType))

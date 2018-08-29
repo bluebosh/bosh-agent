@@ -32,3 +32,14 @@ func (p *FakePartitioner) GetDeviceSizeInBytes(devicePath string) (uint64, error
 	p.GetDeviceSizeInBytesDevicePath = devicePath
 	return p.GetDeviceSizeInBytesSizes[devicePath], p.GetDeviceSizeInBytesErr
 }
+
+type FakePartedPartitioner struct {
+	PartitionCalled     bool
+	PartitionDevicePath string
+	PartitionPartitions []boshdisk.Partition
+	PartitionErr        error
+
+	GetDeviceSizeInBytesDevicePath string
+	GetDeviceSizeInBytesSizes      map[string]uint64
+	GetDeviceSizeInBytesErr        error
+}
