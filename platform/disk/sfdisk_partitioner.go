@@ -43,6 +43,7 @@ func (p sfdiskPartitioner) Partition(devicePath string, partitions []Partition) 
 		PartitionTypeLinux: "L",
 	}
 
+	// @TODO should add prefix or refactor with GPT
 	sfdiskInput := ""
 	for index, partition := range partitions {
 		sfdiskPartitionType := sfdiskPartitionTypes[partition.Type]

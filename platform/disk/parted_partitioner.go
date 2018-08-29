@@ -14,23 +14,27 @@ import (
 )
 
 const (
-	partitionNamePrefix = "bosh-partition"
-	deltaSize           = 100
+	deltaSize = 100
 )
 
 type partedPartitioner struct {
-	logger      boshlog.Logger
-	cmdRunner   boshsys.CmdRunner
-	logTag      string
-	timeService clock.Clock
+	logger              boshlog.Logger
+	cmdRunner           boshsys.CmdRunner
+	logTag              string
+	partitionNamePrefix string
+	timeService         clock.Clock
 }
 
-func NewPartedPartitioner(logger boshlog.Logger, cmdRunner boshsys.CmdRunner, timeService clock.Clock) Partitioner {
-	return partedPartitioner{
-		logger:      logger,
-		cmdRunner:   cmdRunner,
-		logTag:      "PartedPartitioner",
-		timeService: timeService,
+func NewPartedPartitioner(logger boshlog.Logger, cmdRunner boshsys.CmdRunner, timeService clock.Clock, partitionNamePrefix string) PartedPartitioner {
+	if partitionNamePrefix == "" {
+		partitionNamePrefix = "bosh-partition"
+	}
+	return &partedPartitioner{
+		logger:              logger,
+		cmdRunner:           cmdRunner,
+		logTag:              "PartedPartitioner",
+		partitionNamePrefix: partitionNamePrefix,
+		timeService:         timeService,
 	}
 }
 
@@ -102,7 +106,7 @@ func (p partedPartitioner) partitionsMatch(existingPartitions []existingPartitio
 
 func (p partedPartitioner) areAnyExistingPartitionsCreatedByBosh(existingPartitions []existingPartition) bool {
 	for _, partition := range existingPartitions {
-		if strings.HasPrefix(partition.Name, partitionNamePrefix) {
+		if strings.HasPrefix(partition.Name, p.partitionNamePrefix) {
 			return true
 		}
 	}
@@ -269,7 +273,7 @@ func (p partedPartitioner) createEachPartition(partitions []Partition, deviceFul
 				"unit",
 				"B",
 				"mkpart",
-				fmt.Sprintf("%s-%d", partitionNamePrefix, index),
+				fmt.Sprintf("%s-%d", p.partitionNamePrefix, index),
 				fmt.Sprintf("%d", partitionStart),
 				fmt.Sprintf("%d", partitionEnd),
 			)
@@ -340,4 +344,8 @@ func (p partedPartitioner) createMapperPartition(devicePath string) error {
 
 	detectPartitionRetryStrategy := NewPartitionStrategy(detectPartitionRetryable, p.timeService, p.logger)
 	return detectPartitionRetryStrategy.Try()
+}
+
+func (p *partedPartitioner) setPartitionNamePrefix(partitionNamePrefix string) {
+	p.partitionNamePrefix = partitionNamePrefix
 }
