@@ -1457,7 +1457,7 @@ func (fake *FakePlatform) SetTimeWithNtpServersReturnsOnCall(i int, result1 erro
 	}{result1}
 }
 
-func (fake *FakePlatform) SetupEphemeralDiskWithPath(devicePath string, desiredSwapSizeInBytes *uint64) (err error) {
+func (fake *FakePlatform) SetupEphemeralDiskWithPath(devicePath string, desiredSwapSizeInBytes *uint64, agent string) (err error) {
 	fake.setupEphemeralDiskWithPathMutex.Lock()
 	ret, specificReturn := fake.setupEphemeralDiskWithPathReturnsOnCall[len(fake.setupEphemeralDiskWithPathArgsForCall)]
 	fake.setupEphemeralDiskWithPathArgsForCall = append(fake.setupEphemeralDiskWithPathArgsForCall, struct {
