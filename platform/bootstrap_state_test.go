@@ -6,7 +6,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	"github.com/cloudfoundry/bosh-agent/platform"
+	platform "github.com/cloudfoundry/bosh-agent/platform"
 	fakesys "github.com/cloudfoundry/bosh-utils/system/fakes"
 )
 
@@ -46,16 +46,6 @@ var _ = Describe("State", func() {
 			Expect(string(contents)).To(Equal(`{"Linux":{"hosts_configured":true}}`))
 		})
 
-		It("saves the state file with the ephemeral_disk_partitioned passed in", func() {
-			s.Linux = platform.LinuxState{HostsConfigured: true, EphemeralDiskPartitioned: true}
-			s.SaveState()
-
-			contents, readerr := fs.ReadFile(path)
-
-			Expect(readerr).ToNot(HaveOccurred())
-			Expect(string(contents)).To(Equal(`{"Linux":{"hosts_configured":true,"ephemeral_disk_partitioned":true}}`))
-		})
-
 		It("returns an error when it can't write the file", func() {
 			s.Linux = platform.LinuxState{HostsConfigured: true}
 			fs.WriteFileError = errors.New("ENXIO: disk failed")
@@ -79,7 +69,6 @@ var _ = Describe("State", func() {
 				s, err = platform.NewBootstrapState(fs, path)
 
 				Expect(s.Linux.HostsConfigured).To(BeFalse())
-				Expect(s.Linux.EphemeralDiskPartitioned).To(BeFalse())
 			})
 		})
 
@@ -88,7 +77,6 @@ var _ = Describe("State", func() {
 				s, err = platform.NewBootstrapState(fs, "")
 
 				Expect(s.Linux.HostsConfigured).To(BeFalse())
-				Expect(s.Linux.EphemeralDiskPartitioned).To(BeFalse())
 			})
 		})
 
