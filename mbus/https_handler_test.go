@@ -22,7 +22,7 @@ import (
 	fakesys "github.com/cloudfoundry/bosh-utils/system/fakes"
 )
 
-var _ = Describe("HTTPSHandler", func() {
+var _ = XDescribe("HTTPSHandler", func() {
 	var (
 		serverURL       string
 		handler         HTTPSHandler
