@@ -74,6 +74,12 @@ func (p *EphemeralDevicePartitioner) Partition(devicePath string, partitions []P
 		return bosherr.WrapErrorf(err, "Removing existing partitions of `%s'", devicePath)
 	}
 
+	// Ensure partition table type as 'gpt'
+	err = p.ensureGPTTable(devicePath)
+	if err != nil {
+		return bosherr.WrapErrorf(err, "Ensuring GPT table of `%s'", devicePath)
+	}
+
 	return p.partedPartitioner.Partition(devicePath, partitions)
 }
 
@@ -179,4 +185,25 @@ func (p EphemeralDevicePartitioner) getPartitionPaths(devicePath string) ([]stri
 	}
 
 	return match, nil
+}
+
+func (p EphemeralDevicePartitioner) ensureGPTTable(devicePath string) (err error) {
+	stdout, _, _, err := p.cmdRunner.RunCommand("parted", "-m", devicePath, "unit", "B", "print")
+
+	if !strings.Contains(stdout, "gpt") {
+		p.logger.Debug(p.logTag, "Creating gpt table")
+		stdout, _, _, err = p.cmdRunner.RunCommand(
+			"parted",
+			"-s",
+			devicePath,
+			"mklabel",
+			"gpt",
+		)
+
+		if err != nil {
+			return bosherr.WrapErrorf(err, "Parted making label")
+		}
+	}
+
+	return nil
 }
