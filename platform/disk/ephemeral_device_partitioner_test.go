@@ -73,13 +73,20 @@ var _ = Describe("EphemeralDevicePartitioner", func() {
 /dev/edx:221190815744B:xvd:512:512:gpt:Xen Virtual Block Device;
 `},
 				)
+				fakeCmdRunner.AddCmdResult(
+					"parted -m /dev/edx unit B print",
+					fakesys.FakeCmdResult{
+						Stdout: `BYT;
+/dev/edx:221190815744B:xvd:512:512:gpt:Xen Virtual Block Device;
+`},
+				)
 			})
 
 			It("creates partitions using parted starting at the 1048576 byte", func() {
 				err := partitioner.Partition(devicePath, partitions)
 				Expect(err).ToNot(HaveOccurred())
 
-				Expect(len(fakeCmdRunner.RunCommands)).To(Equal(9))
+				Expect(len(fakeCmdRunner.RunCommands)).To(Equal(10))
 
 				scrubbedCommands := scrubPartitionNames(fakeCmdRunner.RunCommands)
 				Expect(scrubbedCommands).To(ContainElement([]string{"parted", "-m", "/dev/edx", "unit", "B", "print"}))
@@ -101,7 +108,15 @@ var _ = Describe("EphemeralDevicePartitioner", func() {
 						fakesys.FakeCmdResult{
 							Stdout: `BYT;
 /dev/edx:221190815744B:xvd:512:512:gpt:Xen Virtual Block Device;
-1:512B:2048576B:199680B:linux-swap(v1):fake-agent-id-0:;
+`},
+					)
+					fakeCmdRunner.AddCmdResult(
+						"parted -m /dev/edx unit B print",
+						fakesys.FakeCmdResult{
+							Stdout: `BYT;
+/dev/edx:221190815744B:xvd:512:512:msdos:Xen Virtual Block Device:;
+1:512B:8406236159B:8406235648B:linux-swap(v1)::;
+2:8406236160B:107372805119B:98966568960B:ext4::;
 `},
 					)
 					fakeCmdRunner.AddCmdResult(
@@ -134,13 +149,13 @@ var _ = Describe("EphemeralDevicePartitioner", func() {
 					err := partitioner.Partition(devicePath, partitions)
 					Expect(err).ToNot(HaveOccurred())
 
-					Expect(len(fakeCmdRunner.RunCommands)).To(Equal(11))
+					Expect(len(fakeCmdRunner.RunCommands)).To(Equal(12))
 
 					scrubbedCommands := scrubPartitionNames(fakeCmdRunner.RunCommands)
 					Expect(scrubbedCommands).To(ContainElement([]string{"parted", "-m", "/dev/edx", "unit", "B", "print"}))
+					Expect(scrubbedCommands).To(ContainElement([]string{"parted", "-s", "/dev/edx", "mklabel", "gpt"}))
 					Expect(scrubbedCommands).To(ContainElement([]string{"blkid"}))
 					Expect(scrubbedCommands).To(ContainElement([]string{"wipefs", "-a", "/dev/edx1"}))
-					Expect(scrubbedCommands).To(ContainElement([]string{"parted", "/dev/edx", "rm", "1"}))
 					Expect(scrubbedCommands).To(ContainElement([]string{"parted", "-s", "/dev/edx", "unit", "B", "mkpart", "fake-agent-id-0", "1048576", "17180917759"}))
 					Expect(scrubbedCommands).To(ContainElement([]string{"parted", "-s", "/dev/edx", "unit", "B", "mkpart", "fake-agent-id-1", "17180917760", "25770852351"}))
 					Expect(scrubbedCommands).To(ContainElement([]string{"partprobe", "/dev/edx"}))
@@ -168,7 +183,7 @@ var _ = Describe("EphemeralDevicePartitioner", func() {
 				It("checks the existing partitions and does nothing", func() {
 					partitions = []Partition{
 						{
-							SizeInBytes: 8589934592, // (16GiB)
+							SizeInBytes: 8589934592, // (8GiB)
 							Type:        PartitionTypeSwap,
 						},
 						{
@@ -188,8 +203,17 @@ var _ = Describe("EphemeralDevicePartitioner", func() {
 				})
 			})
 
-			Context("when agent ID is not changed", func() {
+			Context("when agent ID is changed", func() {
 				BeforeEach(func() {
+					fakeCmdRunner.AddCmdResult(
+						"parted -m /dev/edx unit B print",
+						fakesys.FakeCmdResult{
+							Stdout: `BYT;
+/dev/edx:221190815744B:xvd:512:512:gpt:Xen Virtual Block Device;
+1:512B:8589935104B:8589934592B:linux-swap(v1):old-agent-id-0:;
+2:8589935105B:17179869697B:8589934592B:ext4:old-agent-id-1:;
+`},
+					)
 					fakeCmdRunner.AddCmdResult(
 						"parted -m /dev/edx unit B print",
 						fakesys.FakeCmdResult{
@@ -219,7 +243,7 @@ var _ = Describe("EphemeralDevicePartitioner", func() {
 				It("recreates partitions using parted starting at the 1048576 byte", func() {
 					partitions = []Partition{
 						{
-							SizeInBytes: 8589934592, // (16GiB)
+							SizeInBytes: 8589934592, // (8GiB)
 							Type:        PartitionTypeSwap,
 						},
 						{
@@ -230,7 +254,7 @@ var _ = Describe("EphemeralDevicePartitioner", func() {
 					err := partitioner.Partition(devicePath, partitions)
 					Expect(err).ToNot(HaveOccurred())
 
-					Expect(len(fakeCmdRunner.RunCommands)).To(Equal(13))
+					Expect(len(fakeCmdRunner.RunCommands)).To(Equal(14))
 
 					scrubbedCommands := scrubPartitionNames(fakeCmdRunner.RunCommands)
 					Expect(scrubbedCommands).To(ContainElement([]string{"parted", "-m", "/dev/edx", "unit", "B", "print"}))
