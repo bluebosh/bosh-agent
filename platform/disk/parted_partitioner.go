@@ -45,6 +45,7 @@ func (p partedPartitioner) Partition(devicePath string, desiredPartitions []Part
 	}
 
 	if p.partitionsMatch(existingPartitions, desiredPartitions, deviceFullSizeInBytes) {
+		p.logger.Info(p.logTag, "%s already partitioned as expected, skipping", devicePath)
 		return nil
 	}
 

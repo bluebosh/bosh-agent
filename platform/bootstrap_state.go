@@ -14,8 +14,7 @@ type BootstrapState struct {
 }
 
 type LinuxState struct {
-	HostsConfigured          bool `json:"hosts_configured"`
-	EphemeralDiskPartitioned bool `json:"ephemeral_disk_partitioned,omitempty"`
+	HostsConfigured bool `json:"hosts_configured"`
 }
 
 func NewBootstrapState(fs boshsys.FileSystem, path string) (*BootstrapState, error) {
