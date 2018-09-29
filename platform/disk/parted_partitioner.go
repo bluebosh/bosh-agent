@@ -75,41 +75,6 @@ func (p partedPartitioner) GetDeviceSizeInBytes(devicePath string) (uint64, erro
 	return uint64(deviceSize), nil
 }
 
-func (p partedPartitioner) partitionsMatch(existingPartitions []ExistingPartition, desiredPartitions []Partition, deviceSizeInBytes uint64) bool {
-	if len(existingPartitions) < len(desiredPartitions) {
-		return false
-	}
-
-	remainingDiskSpace := deviceSizeInBytes
-
-	for index, partition := range desiredPartitions {
-		if index == len(desiredPartitions)-1 && partition.SizeInBytes == 0 {
-			partition.SizeInBytes = remainingDiskSpace
-		}
-
-		existingPartition := existingPartitions[index]
-		if existingPartition.Type != partition.Type {
-			return false
-		} else if !withinDelta(partition.SizeInBytes, existingPartition.SizeInBytes, p.convertFromMbToBytes(deltaSize)) {
-			return false
-		}
-
-		remainingDiskSpace = remainingDiskSpace - partition.SizeInBytes
-	}
-
-	return true
-}
-
-func (p partedPartitioner) areAnyExistingPartitionsCreatedByBosh(existingPartitions []ExistingPartition) bool {
-	for _, partition := range existingPartitions {
-		if strings.HasPrefix(partition.Name, partitionNamePrefix) {
-			return true
-		}
-	}
-
-	return false
-}
-
 // For reference on format of outputs: http://lists.alioth.debian.org/pipermail/parted-devel/2006-December/000573.html
 func (p partedPartitioner) GetPartitions(devicePath string) (partitions []ExistingPartition, deviceFullSizeInBytes uint64, err error) {
 	stdout, _, _, err := p.runPartedPrint(devicePath)
@@ -180,6 +145,41 @@ func (p partedPartitioner) GetPartitions(devicePath string) (partitions []Existi
 	}
 
 	return partitions, deviceFullSizeInBytes, nil
+}
+
+func (p partedPartitioner) partitionsMatch(existingPartitions []ExistingPartition, desiredPartitions []Partition, deviceSizeInBytes uint64) bool {
+	if len(existingPartitions) < len(desiredPartitions) {
+		return false
+	}
+
+	remainingDiskSpace := deviceSizeInBytes
+
+	for index, partition := range desiredPartitions {
+		if index == len(desiredPartitions)-1 && partition.SizeInBytes == 0 {
+			partition.SizeInBytes = remainingDiskSpace
+		}
+
+		existingPartition := existingPartitions[index]
+		if existingPartition.Type != partition.Type {
+			return false
+		} else if !withinDelta(partition.SizeInBytes, existingPartition.SizeInBytes, p.convertFromMbToBytes(deltaSize)) {
+			return false
+		}
+
+		remainingDiskSpace = remainingDiskSpace - partition.SizeInBytes
+	}
+
+	return true
+}
+
+func (p partedPartitioner) areAnyExistingPartitionsCreatedByBosh(existingPartitions []ExistingPartition) bool {
+	for _, partition := range existingPartitions {
+		if strings.HasPrefix(partition.Name, partitionNamePrefix) {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (p partedPartitioner) convertFromBytesToMb(sizeInBytes uint64) uint64 {
