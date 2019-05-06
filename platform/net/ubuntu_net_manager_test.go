@@ -232,6 +232,11 @@ dns-nameservers 8.8.8.8 9.9.9.9`
 					"first":  dhcpNetwork,
 					"second": staticNetwork,
 				}
+				stubInterfaces(networks)
+				interfaceAddrsProvider.GetInterfaceAddresses = []boship.InterfaceAddress{
+					boship.NewSimpleInterfaceAddress("second", "1.2.3.4"),
+					boship.NewSimpleInterfaceAddress("first", "5.6.7.8"),
+				}
 
 				Expect(networks.IsPreconfigured()).To(BeTrue())
 			})
@@ -374,7 +379,7 @@ nameserver 9.9.9.9
 				err := netManager.SetupNetworking(networks, nil)
 				Expect(err).ToNot(HaveOccurred())
 
-				Expect(len(cmdRunner.RunCommands)).To(Equal(1))
+				Expect(len(cmdRunner.RunCommands)).To(Equal(6))
 				Expect(cmdRunner.RunCommands[0]).To(Equal([]string{"resolvconf", "-u"}))
 			})
 		})
