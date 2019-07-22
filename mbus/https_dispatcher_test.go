@@ -95,20 +95,21 @@ var _ = Describe("HTTPSDispatcher", func() {
 		}, logger)
 
 		go func() {
-			dispatcher.Start()
+			defer GinkgoRecover()
+			if err := dispatcher.Start(); err != nil {
+				Expect(err).To(MatchError("accept tcp 127.0.0.1:7789: use of closed network connection"))
+			}
 		}()
 
-		Eventually(func() int {
+		Eventually(func() *http.Response {
 			client := getHTTPClient()
-			response, err := client.Get(targetURL + "/example")
-			Expect(err).ToNot(HaveOccurred())
-			return response.StatusCode
-		}, 5*time.Second).Should(BeNumerically("==", 404))
+			response, _ := client.Get(targetURL + "/example")
+			return response
+		}, 5*time.Second).ShouldNot(BeNil())
 	})
 
 	AfterEach(func() {
 		dispatcher.Stop()
-		time.Sleep(1 * time.Second)
 	})
 
 	It("calls the handler function for the route", func() {
