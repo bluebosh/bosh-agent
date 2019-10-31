@@ -20,6 +20,8 @@ import (
 	"github.com/cloudfoundry/bosh-agent/agent/bootonce"
 	boshrunner "github.com/cloudfoundry/bosh-agent/agent/cmdrunner"
 	boshcomp "github.com/cloudfoundry/bosh-agent/agent/compiler"
+	httpblobprovider "github.com/cloudfoundry/bosh-agent/agent/httpblobprovider"
+	"github.com/cloudfoundry/bosh-agent/agent/httpblobprovider/blobstore_delegator"
 	boshscript "github.com/cloudfoundry/bosh-agent/agent/script"
 	boshtask "github.com/cloudfoundry/bosh-agent/agent/task"
 	boshinf "github.com/cloudfoundry/bosh-agent/infrastructure"
@@ -137,26 +139,8 @@ func (app *app) Setup(opts Options) error {
 		return bosherr.WrapError(err, "Getting blob manager")
 	}
 
-	logsBlobstore, err := settingsService.GetSettings().GetSpecificBlobstore("logs")
-	if err != nil {
-		return bosherr.WrapError(err, "Getting blobstore")
-	}
-
-	wrappedLogsBlobstore, err := app.setupBlobstore(
-		logsBlobstore,
-		[]boshagentblobstore.BlobManagerInterface{sensitiveBlobManager, inconsiderateBlobManager},
-	)
-	if err != nil {
-		return bosherr.WrapError(err, "Getting blobstore")
-	}
-
-	packagesBlobstore, err := settingsService.GetSettings().GetSpecificBlobstore("packages")
-	if err != nil {
-		return bosherr.WrapError(err, "Getting blobstore")
-	}
-
-	wrappedPackagesBlobstore, err := app.setupBlobstore(
-		packagesBlobstore,
+	blobstore, err := app.setupBlobstore(
+		settingsService.GetSettings().GetBlobstore(),
 		[]boshagentblobstore.BlobManagerInterface{sensitiveBlobManager, inconsiderateBlobManager},
 	)
 	if err != nil {
@@ -192,9 +176,19 @@ func (app *app) Setup(opts Options) error {
 
 	notifier := boshnotif.NewNotifier(mbusHandler)
 
+	blobstoreHTTPClient, err := httpblobprovider.NewBlobstoreHTTPClient(settingsService.GetSettings().GetBlobstore())
+	if err != nil {
+		return bosherr.WrapError(err, "Failed constructing blobstore http client")
+	}
+
+	blobstoreDelegator := blobstore_delegator.NewBlobstoreDelegator(
+		httpblobprovider.NewHTTPBlobImpl(app.platform.GetFs(), blobstoreHTTPClient),
+		blobstore,
+	)
+
 	applier, compiler := app.buildApplierAndCompiler(
 		app.dirProvider,
-		wrappedPackagesBlobstore,
+		blobstoreDelegator,
 		jobSupervisor,
 		settingsService.GetSettings(),
 		timeService,
@@ -221,8 +215,6 @@ func (app *app) Setup(opts Options) error {
 	actionFactory := boshaction.NewFactory(
 		settingsService,
 		app.platform,
-		wrappedPackagesBlobstore,
-		wrappedLogsBlobstore,
 		sensitiveBlobManager,
 		taskService,
 		notifier,
@@ -232,6 +224,7 @@ func (app *app) Setup(opts Options) error {
 		specService,
 		jobScriptProvider,
 		app.logger,
+		blobstoreDelegator,
 	)
 
 	actionRunner := boshaction.NewRunner()
@@ -280,7 +273,7 @@ func (app *app) GetPlatform() boshplatform.Platform {
 
 func (app *app) buildApplierAndCompiler(
 	dirProvider boshdirs.Provider,
-	packagesBlobstore boshblob.DigestBlobstore,
+	blobstoreDelegator blobstore_delegator.BlobstoreDelegator,
 	jobSupervisor boshjobsuper.JobSupervisor,
 	settings boshsettings.Settings,
 	timeService clock.Clock,
@@ -303,7 +296,7 @@ func (app *app) buildApplierAndCompiler(
 		dirProvider.BaseDir(),
 		dirProvider.JobsDir(),
 		"packages",
-		packagesBlobstore,
+		blobstoreDelegator,
 		app.platform.GetCompressor(),
 		fileSystem,
 		timeService,
@@ -311,11 +304,11 @@ func (app *app) buildApplierAndCompiler(
 	)
 
 	jobApplier := boshaj.NewRenderedJobApplier(
+		blobstoreDelegator,
 		dirProvider,
 		jobsBc,
 		jobSupervisor,
 		packageApplierProvider,
-		packagesBlobstore,
 		boshaj.FixPermissions,
 		fileSystem,
 		app.logger,
@@ -339,7 +332,7 @@ func (app *app) buildApplierAndCompiler(
 
 	compiler := boshcomp.NewConcreteCompiler(
 		app.platform.GetCompressor(),
-		packagesBlobstore,
+		blobstoreDelegator,
 		fileSystem,
 		cmdRunner,
 		dirProvider,
@@ -376,15 +369,10 @@ func (app *app) setupBlobstore(
 	blobstoreSettings boshsettings.Blobstore,
 	blobManagers []boshagentblobstore.BlobManagerInterface,
 ) (boshblob.DigestBlobstore, error) {
-	blobstoreConfigPath := filepath.Join(app.dirProvider.EtcDir(), blobstoreSettings.Name)
-	if err := app.fs.MkdirAll(blobstoreConfigPath, 0755); err != nil {
-		return nil, err
-	}
-
 	blobstoreProvider := boshblob.NewProvider(
 		app.platform.GetFs(),
 		app.platform.GetRunner(),
-		blobstoreConfigPath,
+		app.dirProvider.EtcDir(),
 		app.logger,
 	)
 

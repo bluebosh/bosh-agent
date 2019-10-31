@@ -23,9 +23,6 @@ var _ = Describe("apply", func() {
 		err := testEnvironment.StopAgent()
 		Expect(err).ToNot(HaveOccurred())
 
-		err = testEnvironment.CleanupDataDir()
-		Expect(err).ToNot(HaveOccurred())
-
 		err = testEnvironment.CleanupLogFile()
 		Expect(err).ToNot(HaveOccurred())
 
@@ -41,28 +38,13 @@ var _ = Describe("apply", func() {
 			// note that this SETS the username and password for HTTP message bus access
 			Mbus: "https://mbus-user:mbus-pass@127.0.0.1:6868",
 
-			Env: settings.Env{
-				Bosh: settings.BoshEnv{
-					TargetedBlobstores: settings.TargetedBlobstores{
-						Packages: "custom-blobstore",
-						Logs:     "custom-blobstore",
-					},
-					Blobstores: []settings.Blobstore{
-						settings.Blobstore{
-							Type: "local",
-							Name: "ignored-blobstore",
-							Options: map[string]interface{}{
-								"blobstore_path": "/ignored/blobstore",
-							},
-						},
-						settings.Blobstore{
-							Type: "local",
-							Name: "custom-blobstore",
-							Options: map[string]interface{}{
-								"blobstore_path": "/tmp/my-blobs",
-							},
-						},
-					},
+			Blobstore: settings.Blobstore{
+				Type: "local",
+				Options: map[string]interface{}{
+					// Ignored because we rely on the BlobManagers in the
+					// CascadingBlobstore to return blobs rather than the local
+					// blobstore.
+					"blobstore_path": "ignored",
 				},
 			},
 
@@ -123,13 +105,11 @@ var _ = Describe("apply", func() {
 		_, err = testEnvironment.RunCommand("sudo mkdir -p /var/vcap/data")
 		Expect(err).NotTo(HaveOccurred())
 
-		err = testEnvironment.CreateBlobFromAssetInActualBlobstore(filepath.Join("release", "jobs/foobar.tgz"), "/tmp/my-blobs", "abc0")
+		err = testEnvironment.CreateSensitiveBlobFromAsset(filepath.Join("release", "jobs/foobar.tgz"), "abc0")
 		Expect(err).NotTo(HaveOccurred())
-
-		err = testEnvironment.CreateBlobFromAssetInActualBlobstore(filepath.Join("release", "packages/bar.tgz"), "/tmp/my-blobs", "abc1")
+		err = testEnvironment.CreateBlobFromAsset(filepath.Join("release", "packages/bar.tgz"), "abc1")
 		Expect(err).NotTo(HaveOccurred())
-
-		err = testEnvironment.CreateBlobFromAssetInActualBlobstore(filepath.Join("release", "packages/foo.tgz"), "/tmp/my-blobs", "abc2")
+		err = testEnvironment.CreateBlobFromAsset(filepath.Join("release", "packages/foo.tgz"), "abc2")
 		Expect(err).NotTo(HaveOccurred())
 	})
 
@@ -142,19 +122,6 @@ var _ = Describe("apply", func() {
 
 		err = testEnvironment.DetachDevice("/dev/sdh")
 		Expect(err).ToNot(HaveOccurred())
-
-		output, err := testEnvironment.RunCommand("sudo rm -rf /tmp/my-blobs")
-		Expect(err).NotTo(HaveOccurred(), output)
-	})
-
-	It("can apply sensitive blobs", func() {
-		applySpec.RenderedTemplatesArchive.BlobstoreID = "abc9"
-
-		err := testEnvironment.CreateSensitiveBlobFromAsset(filepath.Join("release", "jobs/foobar.tgz"), "abc9")
-		Expect(err).NotTo(HaveOccurred())
-
-		err = agentClient.Apply(applySpec)
-		Expect(err).NotTo(HaveOccurred())
 	})
 
 	It("should send agent apply and create appropriate /var/vcap/data directories for a job", func() {
@@ -226,54 +193,5 @@ var _ = Describe("apply", func() {
 		output, err = testEnvironment.RunCommand("stat /var/vcap/data/foobar")
 		Expect(err).NotTo(HaveOccurred())
 		Expect(output).To(MatchRegexp("Access: \\(0770/drwxrwx---\\)  Uid: \\(    0/    root\\)   Gid: \\( 100[0-9]/    vcap\\)"))
-	})
-
-	Context("when settings tmpfs is enabled", func() {
-		BeforeEach(func() {
-			registrySettings.Env.Bosh.Agent.Settings.TmpFS = true
-		})
-
-		It("mounts a tmpfs for /var/vcap/settings", func() {
-			err := agentClient.Apply(applySpec)
-			Expect(err).NotTo(HaveOccurred())
-
-			err = agentClient.AddPersistentDisk("disk-cid", "/dev/sdf")
-			Expect(err).NotTo(HaveOccurred())
-
-			output, err := testEnvironment.RunCommand("sudo cat /proc/mounts")
-			Expect(err).NotTo(HaveOccurred())
-
-			Expect(output).To(ContainSubstring("tmpfs /var/vcap/bosh/settings"))
-
-			output, err = testEnvironment.RunCommand("sudo ls /var/vcap/bosh/settings")
-			Expect(err).NotTo(HaveOccurred())
-			Expect(output).To(ContainSubstring("settings.json"))
-			Expect(output).To(ContainSubstring("persistent_disk_hints.json"))
-
-			_, err = testEnvironment.RunCommand("sudo umount /var/vcap/bosh/settings")
-			Expect(err).NotTo(HaveOccurred())
-
-			output, err = testEnvironment.RunCommand("sudo ls /var/vcap/bosh/settings")
-			Expect(err).NotTo(HaveOccurred())
-			Expect(output).NotTo(ContainSubstring("settings.json"))
-			Expect(output).NotTo(ContainSubstring("persistent_disk_hints.json"))
-		})
-	})
-
-	Context("when job dir tmpfs is enabled", func() {
-		BeforeEach(func() {
-			registrySettings.Env.Bosh.JobDir.TmpFS = true
-		})
-
-		It("mounts a tmpfs for /var/vcap/data/jobs", func() {
-			err := agentClient.Apply(applySpec)
-			Expect(err).NotTo(HaveOccurred())
-
-			output, err := testEnvironment.RunCommand("sudo cat /proc/mounts")
-			Expect(err).NotTo(HaveOccurred())
-
-			Expect(output).To(ContainSubstring("tmpfs /var/vcap/data/jobs"))
-			Expect(output).To(ContainSubstring("tmpfs /var/vcap/data/sensitive_blobs"))
-		})
 	})
 })
