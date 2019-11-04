@@ -441,7 +441,6 @@ Address=1.2.3.4/24
 DNS=8.8.8.8
 
 
-[Route]
 `))
 			networkConfig = fs.GetFileTestStat("/etc/systemd/network/10_eth1.network")
 			Expect(networkConfig).ToNot(BeNil())
@@ -459,7 +458,6 @@ Gateway=6.7.8.9
 DNS=8.8.8.8
 
 
-[Route]
 `))
 		})
 
@@ -556,7 +554,6 @@ Gateway=6.7.8.9
 DNS=8.8.8.8
 
 
-[Route]
 `))
 			})
 		})
@@ -624,8 +621,8 @@ Address=1.2.3.4/24
 DNS=8.8.8.8
 
 
-[Route]
 
+[Route]
 Destination=10.0.0.0/8
 Gateway=3.4.5.6
 `))
@@ -645,7 +642,6 @@ Gateway=6.7.8.9
 DNS=8.8.8.8
 
 
-[Route]
 `))
 		})
 
@@ -685,7 +681,6 @@ Gateway=3.4.5.6
 
 
 
-[Route]
 `))
 		})
 
@@ -1003,7 +998,6 @@ DNS=8.8.8.8
 DNS=9.9.9.9
 
 
-[Route]
 `))
 
 			networkConfig = fs.GetFileTestStat("/etc/systemd/network/10_ethstatic.network")
@@ -1023,7 +1017,6 @@ DNS=8.8.8.8
 DNS=9.9.9.9
 
 
-[Route]
 `))
 		})
 
@@ -1118,7 +1111,6 @@ Gateway=3.4.5.6
 
 
 
-[Route]
 `))
 			})
 		})
@@ -1214,7 +1206,6 @@ DNS=8.8.8.8
 DNS=10.0.80.11
 DNS=10.0.80.12
 
-[Route]
 `))
 				networkConfig = fs.GetFileTestStat("/etc/systemd/network/10_eth0:0.network")
 				Expect(networkConfig).ToNot(BeNil())
@@ -1231,7 +1222,6 @@ DNS=8.8.8.8
 DNS=10.0.80.11
 DNS=10.0.80.12
 
-[Route]
 `))
 				networkConfig = fs.GetFileTestStat("/etc/systemd/network/10_eth1.network")
 				Expect(networkConfig).ToNot(BeNil())
@@ -1250,7 +1240,6 @@ DNS=8.8.8.8
 DNS=10.0.80.11
 DNS=10.0.80.12
 
-[Route]
 `))
 			})
 		})
