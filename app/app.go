@@ -338,6 +338,7 @@ func (app *app) buildApplierAndCompiler(
 		dirProvider,
 		packageApplierProvider.Root(),
 		packageApplierProvider.RootBundleCollection(),
+		clock.NewClock(),
 	)
 
 	return applier, compiler
