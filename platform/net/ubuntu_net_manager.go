@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 	"text/template"
+	"time"
 
 	bosharp "github.com/cloudfoundry/bosh-agent/platform/net/arp"
 	boship "github.com/cloudfoundry/bosh-agent/platform/net/ip"
@@ -138,6 +139,7 @@ func (net UbuntuNetManager) SetupNetworking(networks boshsettings.Networks, errC
 		if err != nil {
 			return bosherr.WrapError(err, "Failure restarting networking")
 		}
+		time.Sleep(time.Duration(1) * time.Second)
 	}
 
 	staticAddresses, dynamicAddresses := net.ifaceAddresses(staticConfigs, dhcpConfigs)
