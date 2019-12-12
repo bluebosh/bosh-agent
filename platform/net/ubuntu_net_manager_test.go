@@ -9,6 +9,7 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/onsi/gomega/format"
 
 	"github.com/cloudfoundry/bosh-agent/factory"
 	. "github.com/cloudfoundry/bosh-agent/platform/net"
@@ -68,6 +69,8 @@ var _ = Describe("ubuntuNetManager", func() {
 			kernelIPv6,
 			logger,
 		).(UbuntuNetManager)
+
+		format.TruncatedDiff = false
 	})
 
 	Describe("ComputeNetworkConfig", func() {
@@ -169,6 +172,58 @@ var _ = Describe("ubuntuNetManager", func() {
 						Mac:                 "aa::bb::cc",
 						Gateway:             "10.10.0.1",
 					},
+				}))
+				Expect(dhcpInterfaceConfigurations).To(BeEmpty())
+				Expect(dnsServers).To(Equal([]string{"54.209.78.6", "127.0.0.5"}))
+			})
+
+			It("collapses virtual interface into network bound by MAC address", func() {
+				networks := boshsettings.Networks{
+					"default": factory.Network{
+						IP:      "10.10.0.32",
+						Netmask: "255.255.255.0",
+						Mac:     "mac-1",
+						Default: []string{"dns", "gateway"},
+						DNS:     &[]string{"54.209.78.6", "127.0.0.5"},
+						Gateway: "10.10.0.1",
+					}.Build(),
+					"second": factory.Network{
+						IP:      "10.10.0.33",
+						Netmask: "255.255.255.0",
+						Default: []string{"dns", "gateway"},
+						DNS:     &[]string{"54.209.78.6", "127.0.0.5"},
+						Gateway: "10.10.0.1",
+						Alias:   "eth0:1",
+					}.Build(),
+					"third": factory.Network{
+						IP:      "10.10.0.34",
+						Netmask: "255.255.255.0",
+						Default: []string{"dns", "gateway"},
+						DNS:     &[]string{"54.209.78.6", "127.0.0.5"},
+						Gateway: "10.10.0.1",
+						Alias:   "eth0:2",
+					}.Build(),
+				}
+
+				addresses := map[string]string{}
+				addresses["mac-1"] = "eth0"
+
+				fakeMACAddressDetector.DetectMacAddressesReturns(addresses, nil)
+				staticInterfaceConfigurations, dhcpInterfaceConfigurations, dnsServers, err := netManager.ComputeNetworkConfig(networks)
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(len(staticInterfaceConfigurations)).To(Equal(1))
+				Expect(staticInterfaceConfigurations[0].Name).To(Equal("eth0"))
+				Expect(staticInterfaceConfigurations[0].Address).To(Equal("10.10.0.32"))
+				Expect(staticInterfaceConfigurations[0].Netmask).To(Equal("255.255.255.0"))
+				Expect(staticInterfaceConfigurations[0].Network).To(Equal("10.10.0.0"))
+				Expect(staticInterfaceConfigurations[0].IsDefaultForGateway).To(Equal(true))
+				Expect(staticInterfaceConfigurations[0].Broadcast).To(Equal("10.10.0.255"))
+				Expect(staticInterfaceConfigurations[0].Mac).To(Equal("mac-1"))
+				Expect(staticInterfaceConfigurations[0].Gateway).To(Equal("10.10.0.1"))
+				Expect(staticInterfaceConfigurations[0].VirtualInterfaces).To(ConsistOf([]VirtualInterface{
+					VirtualInterface{Label: "eth0:1", Address: "10.10.0.33/24"},
+					VirtualInterface{Label: "eth0:2", Address: "10.10.0.34/24"},
 				}))
 				Expect(dhcpInterfaceConfigurations).To(BeEmpty())
 				Expect(dnsServers).To(Equal([]string{"54.209.78.6", "127.0.0.5"}))
@@ -434,12 +489,8 @@ Name=eth0
 [Address]
 Address=1.2.3.4/24
 
-
 [Network]
-
-
 DNS=8.8.8.8
-
 
 `))
 			networkConfig = fs.GetFileTestStat("/etc/systemd/network/10_eth1.network")
@@ -454,9 +505,7 @@ Broadcast=5.6.7.255
 
 [Network]
 Gateway=6.7.8.9
-
 DNS=8.8.8.8
-
 
 `))
 		})
@@ -550,9 +599,7 @@ Broadcast=5.6.7.255
 
 [Network]
 Gateway=6.7.8.9
-
 DNS=8.8.8.8
-
 
 `))
 			})
@@ -619,13 +666,8 @@ Name=eth0
 [Address]
 Address=1.2.3.4/24
 
-
 [Network]
-
-
 DNS=8.8.8.8
-
-
 
 [Route]
 Destination=10.0.0.0/8
@@ -634,6 +676,7 @@ Gateway=3.4.5.6
 [Route]
 Destination=10.0.1.0/8
 Gateway=3.4.5.6
+
 `))
 			networkConfig = fs.GetFileTestStat("/etc/systemd/network/10_eth1.network")
 			Expect(networkConfig).ToNot(BeNil())
@@ -647,9 +690,7 @@ Broadcast=5.6.7.255
 
 [Network]
 Gateway=6.7.8.9
-
 DNS=8.8.8.8
-
 
 `))
 		})
@@ -703,10 +744,7 @@ Name=eth0
 
 [Network]
 DHCP=yes
-
 DNS=8.8.8.8
-
-
 
 [Route]
 Destination=10.0.0.0/8
@@ -715,6 +753,7 @@ Gateway=3.4.5.6
 [Route]
 Destination=10.0.1.0/8
 Gateway=3.4.5.6
+
 `))
 		})
 
@@ -751,8 +790,6 @@ Broadcast=1.2.3.255
 
 [Network]
 Gateway=3.4.5.6
-
-
 
 `))
 		})
@@ -800,7 +837,7 @@ Gateway=3.4.5.6
 				"static-1": staticNetwork,
 			}, nil)
 			Expect(err).To(HaveOccurred())
-			Expect(err).To(MatchError(`Updating network configs: Writing network configuration: Updating network configuration for eth0: Generating config from template eth0: template: eth0:6:58: executing "eth0" at <.InterfaceConfig.CIDR>: error calling CIDR: netmask cannot be converted to CIDR: 255.0.255.0`))
+			Expect(err).To(MatchError(`Updating network configs: Writing network configuration: Updating network configuration for eth0: netmask cannot be converted to CIDR: 255.0.255.0`))
 		})
 
 		It("writes a dhcp configuration if there are dhcp networks", func() {
@@ -885,7 +922,7 @@ request subnet-mask, broadcast-address, time-offset, routers,
 			Expect(dhcpConfig).To(BeNil())
 		})
 
-		It("restarts the networks if /etc/network/interfaces changes", func() {
+		It("restarts the networks only if config changes", func() {
 			initialDhcpConfig := `# Generated by bosh-agent
 
 option rfc3442-classless-static-routes code 121 = array of unsigned integer 8;
@@ -934,6 +971,14 @@ prepend domain-name-servers 8.8.8.8, 9.9.9.9;
 			Expect(cmdRunner.RunCommands[4]).To(Equal([]string{"resolvconf", "-u"}))
 
 			Expect(fs.ReadFileString("/etc/dhcp/dhclient.conf")).To(Equal(initialDhcpConfig))
+
+			By("Setting up the networks with the same inputs, we do not restart networking")
+			cmdRunner.ClearCommandHistory()
+			err = netManager.SetupNetworking(boshsettings.Networks{"dhcp-network": dhcpNetwork, "static-network": staticNetwork}, nil)
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(len(cmdRunner.RunCommands)).To(Equal(1))
+			Expect(cmdRunner.RunCommands[0]).To(Equal([]string{"resolvconf", "-u"}))
 		})
 
 		It("doesn't restart the networks if /etc/network/interfaces and /etc/dhcp/dhclient.conf don't change", func() {
@@ -1066,10 +1111,8 @@ Name=ethdhcp
 
 [Network]
 DHCP=yes
-
 DNS=8.8.8.8
 DNS=9.9.9.9
-
 
 `))
 
@@ -1085,10 +1128,8 @@ Broadcast=1.2.3.255
 
 [Network]
 Gateway=3.4.5.6
-
 DNS=8.8.8.8
 DNS=9.9.9.9
-
 
 `))
 		})
@@ -1182,8 +1223,6 @@ Broadcast=2.2.2.255
 [Network]
 Gateway=3.4.5.6
 
-
-
 `))
 			})
 		})
@@ -1248,6 +1287,7 @@ nameserver 10.0.80.12
 				})
 
 				err := netManager.SetupNetworking(boshsettings.Networks{"default": portableNetwork, "dynamic": staticNetwork, "dynamic_1": staticNetwork1}, nil)
+				Expect(err).NotTo(HaveOccurred())
 
 				Eventually(func() []boship.InterfaceAddress { return addressBroadcaster.Value() }).Should(
 					Equal([]boship.InterfaceAddress{
@@ -1260,37 +1300,25 @@ nameserver 10.0.80.12
 				Expect(err).NotTo(HaveOccurred())
 				Expect(matches).To(ConsistOf(
 					"/etc/systemd/network/10_eth0.network",
-					"/etc/systemd/network/10_eth0:0.network",
 					"/etc/systemd/network/10_eth1.network",
 				))
 
+				format.TruncatedDiff = false
+
 				networkConfig := fs.GetFileTestStat("/etc/systemd/network/10_eth0.network")
 				Expect(networkConfig).ToNot(BeNil())
-				Expect(scrubMultipleLines(networkConfig.StringContents())).To(Equal(`# Generated by bosh-agent
+				Expect(networkConfig.StringContents()).To(Equal(`# Generated by bosh-agent
 [Match]
 Name=eth0
 
 [Address]
 Address=10.112.39.113/25
 
-[Network]
-
-DNS=8.8.8.8
-DNS=10.0.80.11
-DNS=10.0.80.12
-
-`))
-				networkConfig = fs.GetFileTestStat("/etc/systemd/network/10_eth0:0.network")
-				Expect(networkConfig).ToNot(BeNil())
-				Expect(scrubMultipleLines(networkConfig.StringContents())).To(Equal(`# Generated by bosh-agent
-[Match]
-Name=eth0:0
-
 [Address]
+Label=eth0:0
 Address=10.112.166.136/26
 
 [Network]
-
 DNS=8.8.8.8
 DNS=10.0.80.11
 DNS=10.0.80.12
@@ -1308,7 +1336,6 @@ Broadcast=169.50.68.95
 
 [Network]
 Gateway=169.50.68.65
-
 DNS=8.8.8.8
 DNS=10.0.80.11
 DNS=10.0.80.12
