@@ -54,7 +54,6 @@ var _ = Describe("ubuntuNetManager", func() {
 		interfaceConfigurationCreator = NewInterfaceConfigurationCreator(logger)
 		addressBroadcaster = &fakearp.FakeAddressBroadcaster{}
 		interfaceAddrsProvider = &fakeip.FakeInterfaceAddressesProvider{}
-		interfaceAddrsValidator := boship.NewInterfaceAddressesValidator(interfaceAddrsProvider)
 		dnsValidator := NewDNSValidator(fs)
 		kernelIPv6 = &fakenet.FakeKernelIPv6{}
 		netManager = NewUbuntuNetManager(
@@ -63,7 +62,7 @@ var _ = Describe("ubuntuNetManager", func() {
 			ipResolver,
 			fakeMACAddressDetector,
 			interfaceConfigurationCreator,
-			interfaceAddrsValidator,
+			interfaceAddrsProvider,
 			dnsValidator,
 			addressBroadcaster,
 			kernelIPv6,
@@ -746,6 +745,9 @@ Name=eth0
 DHCP=yes
 DNS=8.8.8.8
 
+[DHCP]
+UseDomains=yes
+
 [Route]
 Destination=10.0.0.0/8
 Gateway=3.4.5.6
@@ -1113,6 +1115,9 @@ Name=ethdhcp
 DHCP=yes
 DNS=8.8.8.8
 DNS=9.9.9.9
+
+[DHCP]
+UseDomains=yes
 
 `))
 
