@@ -83,9 +83,7 @@ func NewProvider(logger boshlog.Logger, dirProvider boshdirs.Provider, statsColl
 	kernelIPv6 := boshnet.NewKernelIPv6Impl(fs, runner, logger)
 	macAddressDetector := boshnet.NewMacAddressDetector(fs)
 
-	centosNetManager := boshnet.NewCentosNetManager(fs, runner, ipResolver, macAddressDetector, interfaceConfigurationCreator, interfaceAddressesProvider, dnsValidator, arping, logger)
 	ubuntuNetManager := boshnet.NewUbuntuNetManager(fs, runner, ipResolver, macAddressDetector, interfaceConfigurationCreator, interfaceAddressesProvider, dnsValidator, arping, kernelIPv6, logger)
-	opensuseNetManager := boshnet.NewOpensuseNetManager(fs, runner, ipResolver, macAddressDetector, interfaceConfigurationCreator, interfaceAddressesProvider, dnsValidator, arping, logger)
 
 	windowsNetManager := boshnet.NewWindowsNetManager(
 		runner,
@@ -97,10 +95,8 @@ func NewProvider(logger boshlog.Logger, dirProvider boshdirs.Provider, statsColl
 		dirProvider,
 	)
 
-	centosCertManager := boshcert.NewCentOSCertManager(fs, runner, 0, logger)
 	ubuntuCertManager := boshcert.NewUbuntuCertManager(fs, runner, 60, logger)
 	windowsCertManager := boshcert.NewWindowsCertManager(fs, runner, dirProvider, logger)
-	opensuseCertManager := boshcert.NewOpensuseOSCertManager(fs, runner, 0, logger)
 
 	interfaceManager := boshnet.NewInterfaceManager()
 
@@ -133,30 +129,6 @@ func NewProvider(logger boshlog.Logger, dirProvider boshdirs.Provider, statsColl
 	}
 
 	uuidGenerator := boshuuid.NewGenerator()
-
-	var centos = func() Platform {
-		return NewLinuxPlatform(
-			fs,
-			runner,
-			statsCollector,
-			compressor,
-			copier,
-			dirProvider,
-			vitalsService,
-			linuxCdutil,
-			linuxDiskManager,
-			centosNetManager,
-			centosCertManager,
-			monitRetryStrategy,
-			devicePathResolver,
-			bootstrapState,
-			options.Linux,
-			logger,
-			defaultNetworkResolver,
-			uuidGenerator,
-			auditLogger,
-		)
-	}
 
 	var ubuntu = func() Platform {
 		return NewLinuxPlatform(
@@ -212,37 +184,11 @@ func NewProvider(logger boshlog.Logger, dirProvider boshdirs.Provider, statsColl
 		)
 	}
 
-	var opensuse = func() Platform {
-		return NewLinuxPlatform(
-			fs,
-			runner,
-			statsCollector,
-			compressor,
-			copier,
-			dirProvider,
-			vitalsService,
-			linuxCdutil,
-			linuxDiskManager,
-			opensuseNetManager,
-			opensuseCertManager,
-			monitRetryStrategy,
-			devicePathResolver,
-			bootstrapState,
-			options.Linux,
-			logger,
-			defaultNetworkResolver,
-			uuidGenerator,
-			auditLogger,
-		)
-	}
-
 	return provider{
 		platforms: map[string]func() Platform{
-			"ubuntu":   ubuntu,
-			"centos":   centos,
-			"dummy":    dummy,
-			"windows":  windows,
-			"opensuse": opensuse,
+			"ubuntu":  ubuntu,
+			"dummy":   dummy,
+			"windows": windows,
 		},
 	}
 }

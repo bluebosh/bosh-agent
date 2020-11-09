@@ -10,8 +10,9 @@ import (
 )
 
 type CompilePackageWithSignedURLRequest struct {
-	PackageGetSignedURL string `json:"package_get_signed_url"`
-	UploadSignedURL     string `json:"upload_signed_url"`
+	PackageGetSignedURL string            `json:"package_get_signed_url"`
+	UploadSignedURL     string            `json:"upload_signed_url"`
+	BlobstoreHeaders    map[string]string `json:"blobstore_headers"`
 
 	Digest  boshcrypto.MultipleDigest `json:"digest"`
 	Name    string                    `json:"name"`
@@ -36,6 +37,7 @@ func (a CompilePackageWithSignedURL) Run(request CompilePackageWithSignedURLRequ
 		Version:             request.Version,
 		PackageGetSignedURL: request.PackageGetSignedURL,
 		UploadSignedURL:     request.UploadSignedURL,
+		BlobstoreHeaders:    request.BlobstoreHeaders,
 	}
 
 	modelsDeps := []boshmodels.Package{}
@@ -45,9 +47,10 @@ func (a CompilePackageWithSignedURL) Run(request CompilePackageWithSignedURLRequ
 			Name:    dep.Name,
 			Version: dep.Version,
 			Source: boshmodels.Source{
-				Sha1:        dep.Sha1,
-				BlobstoreID: dep.BlobstoreID,
-				SignedURL:   dep.PackageGetSignedURL,
+				Sha1:             dep.Sha1,
+				BlobstoreID:      dep.BlobstoreID,
+				SignedURL:        dep.PackageGetSignedURL,
+				BlobstoreHeaders: dep.BlobstoreHeaders,
 			},
 		})
 	}

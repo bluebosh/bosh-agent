@@ -38,7 +38,6 @@ func isInternalBlobstore(provider string) bool {
 	default:
 		return false
 	}
-
 }
 
 func fetchCaCertificate(options map[string]interface{}) string {
