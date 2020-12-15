@@ -368,7 +368,7 @@ func (net UbuntuNetManager) updateConfiguration(name, templateDefinition string,
 const systemdNetworkFolder = "/etc/systemd/network"
 
 func interfaceConfigurationFile(name string) string {
-	interfaceBasename := fmt.Sprintf("00_%s.network", name)
+	interfaceBasename := fmt.Sprintf("09_%s.network", name)
 	return filepath.Join(systemdNetworkFolder, interfaceBasename)
 }
 
