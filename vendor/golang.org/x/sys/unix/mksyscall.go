@@ -86,15 +86,13 @@ func parseParam(p string) Param {
 }
 
 func main() {
-	// Get the OS and architecture (using GOARCH_TARGET if it exists)
-	goos := os.Getenv("GOOS")
+	goos := os.Getenv("GOOS_TARGET")
+	if goos == "" {
+		goos = os.Getenv("GOOS")
+	}
 	if goos == "" {
 		fmt.Fprintln(os.Stderr, "GOOS not defined in environment")
 		os.Exit(1)
-	}
-	goarch := os.Getenv("GOARCH_TARGET")
-	if goarch == "" {
-		goarch = os.Getenv("GOARCH")
 	}
 
 	// Check that we are using the Docker-based build system if we should
@@ -365,7 +363,6 @@ func main() {
 				text += fmt.Sprintf("func libc_%s_trampoline()\n", libcFn)
 				// Assembly trampoline calls the libc_* function, which this magic
 				// redirects to use the function from libSystem.
-				text += fmt.Sprintf("//go:linkname libc_%s libc_%s\n", libcFn, libcFn)
 				text += fmt.Sprintf("//go:cgo_import_dynamic libc_%s %s \"/usr/lib/libSystem.B.dylib\"\n", libcFn, libcFn)
 				text += "\n"
 			}

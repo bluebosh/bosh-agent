@@ -44,6 +44,10 @@ func init() {
 			agent Agent
 		)
 
+		BeforeSuite(func() {
+			HeartbeatRetryInterval = 1 * time.Millisecond
+		})
+
 		BeforeEach(func() {
 			logger = boshlog.NewLogger(boshlog.LevelNone)
 			handler = &fakembus.FakeHandler{}
@@ -73,6 +77,7 @@ func init() {
 				timeService,
 				startManager,
 			)
+
 		})
 
 		Describe("Run", func() {
@@ -178,11 +183,17 @@ func init() {
 					Expect(jobSupervisor.GetHealthRecorded()).To(Equal(1))
 				})
 
-				It("sends periodic heartbeats", func() {
+				It("sends periodic heartbeats, with retry", func() {
 					sentRequests := 0
 					handler.SendCallback = func(_ fakembus.SendInput) {
 						sentRequests++
 						if sentRequests == 3 {
+							handler.SendErr = errors.New("disconnect")
+						}
+						if sentRequests == 4 {
+							handler.SendErr = nil
+						}
+						if sentRequests == 5 {
 							handler.SendErr = errors.New("stop")
 						}
 					}
@@ -192,7 +203,7 @@ func init() {
 					Expect(err.Error()).To(ContainSubstring("stop"))
 
 					inputs := handler.SendInputs()
-					Expect(len(inputs)).To(BeNumerically(">=", 3))
+					Expect(len(inputs)).To(BeNumerically(">=", 15))
 					for _, input := range inputs {
 						Expect(input).To(Equal(fakembus.SendInput{
 							Target:  boshhandler.HealthMonitor,
